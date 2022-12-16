@@ -11,14 +11,20 @@ import re
 import spacy
 
 
-nlp = spacy.load("en_core_web_sm")
+def load_language_model():
+    nlp = spacy.load("en_core_web_sm")
+    return nlp
 
 
-# remove prepositions (in, to etc.), determiner (this, that, a, an etc.) and punctuation.
 def remove_function_words(string: str) -> str:
+    """
+    This function removes ADP(prepositions like in, to, auf etc.), DET(determiner like this, that, a, an, diese etc.) 
+    and PUNCT(punctuation) tags from a string. The SPACY POS Tags List is the same for different languages. 
+    """
     if len(string.split()) == 1:
         return string
     else:
+        nlp = load_language_model()
         doc = nlp(string)
         string = ""
         for token in doc:
@@ -30,7 +36,7 @@ def remove_function_words(string: str) -> str:
         return string.lstrip()
 
 
-class Tuple:
+class SRLTuple:
     def __init__(
         self,
         agent=None,
@@ -41,89 +47,97 @@ class Tuple:
         time=None,
         location=None,
     ):
-        self.agent = agent if agent else "Ｏ"
-        self.negation = negation if negation else "Ｏ"
-        self.relation = relation if relation else "Ｏ"
-        self.patient = patient if patient else "Ｏ"
-        self.recipient = recipient if recipient else "Ｏ"
-        self.time = time if time else "Ｏ"
-        self.location = location if location else "Ｏ"
+        self.agent = agent
+        self.negation = negation
+        self.relation = relation
+        self.patient = patient
+        self.recipient = recipient
+        self.time = time
+        self.location = location
 
-    def format_tupel(self) -> tuple:
-        lst = list()
-        lst.append(self.agent)
-        lst.append(self.negation)
-        lst.append(self.relation)
-        lst.append(self.patient)
-        lst.append(self.recipient)
-        lst.append(self.time)
-        lst.append(self.location)
-        return tuple(lst)
-
-    def extract_tuples(self, annotated_data: dict) -> tuple:
-
-        # build an empty tuple database
-        tuples = []
-
-        for i in range(len(annotated_data["verbs"])):
-            res = re.findall(r"\[.*?\]", annotated_data["verbs"][i]["description"])
-            print(res)
-            # EXAMPLE res: ['[ARG0: I]', '[V: see]', '[ARG1: a wolf howling]', '[ARGM-TMP: at the end of the garden]']
-            nr_of_roles = 0
-            for j in res:
-                former = j[j.find("[") + 1 : j.find(":")]
-                latter = j[j.find(" ") + 1 : j.find("]")]
-                if former == "ARG0":
-                    self.agent = remove_function_words(latter)
-                    nr_of_roles += 1
-                if former == "ARGM-NEG":
-                    self.negation = latter
-                    nr_of_roles += 1
-                if former == "V":
-                    self.relation = WordNetLemmatizer().lemmatize(latter, "v")
-                    nr_of_roles += 1
-                if former == "ARG1":
-                    self.patient = remove_function_words(latter)
-                    nr_of_roles += 1
-                if former == "ARG2":
-                    self.recipient = remove_function_words(latter)
-                    nr_of_roles += 1
-                if former == "ARGM-TMP":
-                    self.time = latter
-                    nr_of_roles += 1
-                if former == "ARGM-LOC":
-                    self.location = latter
-                    nr_of_roles += 1
-            # Only tuples with at least two roles will be added to the tuple database of an article
-            if nr_of_roles >= 2:
-                tuples.append(self.format_tupel())
-            self.__init__()
-        return tuples
+    def format_tuple(self) -> tuple:
+        return tuple(
+            [
+                self.agent,
+                self.negation,
+                self.relation,
+                self.patient,
+                self.recipient,
+                self.time,
+                self.location,
+            ]
+        )
 
 
-if __name__ == "__main__":
-
+def text_preprocessing(text: str) -> str:
     # step 1: AllenNLP coreference resolution
     coref_resolved_text = Predictor.from_path(
         "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2021.03.10.tar.gz"
-    ).coref_resolved(
-        "Peter gave his book to his sister Mary yesterday in Berlin. She is a young girl. He wants to make her happy"
-        # "He walks slowly"
-        # "In the twilight, I am horrified to see a wolf howling at the end of the garden"
-        # "John can't keep up with Mary 's rapid mood swings"
-        # "South Korea has opened its market to foreign cigarettes."
-        # "I can't do it"
-        # "Paul has bought an apple for Anna. She is very happy."
-    )
+    ).coref_resolved(text)
 
     # step 2: AllenNLP SRL
     srl_annotated_text = Predictor.from_path(
         "https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz"
     ).predict(sentence=coref_resolved_text)
+    return srl_annotated_text
 
-    tup = Tuple()
-    tuple_database: List[tuple] = tup.extract_tuples(srl_annotated_text)
-    print(tuple_database)
+
+def extract_tuples(text: str) -> List[tuple]:
+    """
+    This function taks an text as input and returns a list of extracted SRL truth tuples.
+
+    """
+    annotated_data: dict = text_preprocessing(text)
+    # build an empty tuple database
+    tuple_database = []
+
+    for i in range(len(annotated_data["verbs"])):
+        res = re.findall(r"\[.*?\]", annotated_data["verbs"][i]["description"])
+        # EXAMPLE res: ['[ARG0: I]', '[V: see]', '[ARG1: a wolf howling]', '[ARGM-TMP: at the end of the garden]']
+        nr_of_roles = 0
+        extracted_SRLTuple = SRLTuple()
+        for j in res:
+            former = j[j.find("[") + 1 : j.find(":")]
+            latter = j[j.find(" ") + 1 : j.find("]")]
+            if former == "ARG0":
+                extracted_SRLTuple.agent = remove_function_words(latter)
+                nr_of_roles += 1
+            if former == "ARGM-NEG":
+                extracted_SRLTuple.negation = latter
+                nr_of_roles += 1
+            if former == "V":
+                extracted_SRLTuple.relation = WordNetLemmatizer().lemmatize(latter, "v")
+                nr_of_roles += 1
+            if former == "ARG1":
+                extracted_SRLTuple.patient = remove_function_words(latter)
+                nr_of_roles += 1
+            if former == "ARG2":
+                extracted_SRLTuple.recipient = remove_function_words(latter)
+                nr_of_roles += 1
+            if former == "ARGM-TMP":
+                extracted_SRLTuple.time = latter
+                nr_of_roles += 1
+            if former == "ARGM-LOC":
+                extracted_SRLTuple.location = latter
+                nr_of_roles += 1
+        # Only tuples with at least two roles will be added to the tuple database of an article
+        if nr_of_roles >= 2:
+            tuple_database.append(extracted_SRLTuple.format_tuple())
+    return tuple_database
+
+
+if __name__ == "__main__":
+
+    examples = "Peter gave his book to his sister Mary yesterday in Berlin. She is a young girl. He wants to make her happy"
+    # examples = "He walks slowly"
+    # examples = "In the twilight, I am horrified to see a wolf howling at the end of the garden"
+    # examples = "John can't keep up with Mary 's rapid mood swings"
+    # examples = "South Korea has opened its market to foreign cigarettes."
+    # examples = "I can't do it"
+    # examples = "Paul has bought an apple for Anna. She is very happy."
+
+    truth_tuples: List[tuple] = extract_tuples(examples)
+    print(truth_tuples)
 
 # {
 #     "verbs": [
