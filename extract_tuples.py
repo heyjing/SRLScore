@@ -5,14 +5,14 @@ using semantic role labels. For an input text, the output will be a fact databas
 
 
 from typing import List
+import re
 from allennlp.predictors.predictor import Predictor
 from nltk.stem.wordnet import WordNetLemmatizer
-import re
 import spacy
 
 
 def load_language_model():
-    nlp = spacy.load("en_core_web_sm")
+    nlp = spacy.load("en_core_web_lg")
     return nlp
 
 
