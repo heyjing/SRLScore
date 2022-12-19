@@ -5,12 +5,15 @@ using semantic role labels. For an input text, the output will be a fact databas
 
 
 from typing import List
+from functools import lru_cache
 import re
 from allennlp.predictors.predictor import Predictor
 from nltk.stem.wordnet import WordNetLemmatizer
+from tqdm import tqdm
 import spacy
 
 
+@lru_cache(maxsize=1)
 def load_language_model():
     nlp = spacy.load("en_core_web_lg")
     return nlp
@@ -21,19 +24,20 @@ def remove_function_words(string: str) -> str:
     This function removes ADP(prepositions like in, to, auf etc.), DET(determiner like this, that, a, an, diese etc.) 
     and PUNCT(punctuation) tags from a string. The SPACY POS Tags List is the same for different languages. 
     """
-    if len(string.split()) == 1:
-        return string
-    else:
-        nlp = load_language_model()
-        doc = nlp(string)
-        string = ""
-        for token in doc:
-            if token.pos_ != "ADP" and token.pos_ != "DET" and token.pos_ != "PUNCT":
-                if token.text == "'s":
-                    string += token.text
-                else:
-                    string += " " + token.text
-        return string.lstrip()
+    # if len(string.split()) == 1:
+    #     return string
+    # else:
+    #     nlp = load_language_model()
+    #     doc = nlp(string)
+    #     string = ""
+    #     for token in doc:
+    #         if token.pos_ != "ADP" and token.pos_ != "DET" and token.pos_ != "PUNCT":
+    #             if token.text == "'s":
+    #                 string += token.text
+    #             else:
+    #                 string += " " + token.text
+    #     return string.lstrip()
+    return string
 
 
 class SRLTuple:
@@ -69,29 +73,44 @@ class SRLTuple:
         )
 
 
-def text_preprocessing(text: str) -> str:
-    # step 1: AllenNLP coreference resolution
-    coref_resolved_text = Predictor.from_path(
-        "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2021.03.10.tar.gz"
-    ).coref_resolved(text)
+@lru_cache(maxsize=2)
+def load_srl_models():
+    # coref_model = Predictor.from_path(
+    #     "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2021.03.10.tar.gz",
+    #     cuda_device=1,
+    # )
+    srl_model = Predictor.from_path(
+        "https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz",
+        cuda_device=0,
+    )
 
+    # return coref_model, srl_model
+    return srl_model
+
+
+def text_preprocessing(text: str) -> str:
+    # # step 1: AllenNLP coreference resolution
+    # print("-----text preprocessing: coreference resolution-----")
+    # coref_model, srl_model = load_srl_models()
+    # coref_resolved_text = coref_model.coref_resolved(text)
     # step 2: AllenNLP SRL
-    srl_annotated_text = Predictor.from_path(
-        "https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz"
-    ).predict(sentence=coref_resolved_text)
+    print("-----text preprocessing: SRL-----")
+    srl_model = load_srl_models()
+    srl_annotated_text = srl_model.predict(sentence=text)
+
     return srl_annotated_text
 
 
 def extract_tuples(text: str) -> List[tuple]:
     """
-    This function taks an text as input and returns a list of extracted SRL truth tuples.
+    This function takes an text as input and returns a list of extracted SRL truth tuples.
 
     """
     annotated_data: dict = text_preprocessing(text)
     # build an empty tuple database
     tuple_database = []
 
-    for i in range(len(annotated_data["verbs"])):
+    for i in tqdm(range(len(annotated_data["verbs"])), desc="Extracting tuples"):
         res = re.findall(r"\[.*?\]", annotated_data["verbs"][i]["description"])
         # EXAMPLE res: ['[ARG0: I]', '[V: see]', '[ARG1: a wolf howling]', '[ARGM-TMP: at the end of the garden]']
         nr_of_roles = 0
