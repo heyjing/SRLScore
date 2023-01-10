@@ -4,22 +4,28 @@ and generates a factual consistency score of the summary.
 """
 
 
-from typing import List
+from typing import List, Optional
 from statistics import mean
+import warnings
 import numpy as np
 from tqdm import tqdm
-import extract_tuples
+import extract_tuples as et
 
 
-def calculate_string_similarity(source_str=None, summary_str=None) -> float:
+def calculate_string_similarity(
+    source_str: Optional[str], summary_str: Optional[str]
+) -> float:
     if source_str and summary_str:
-        # nlp = extract_tuples.load_language_model()
+        # nlp = et.load_language_model()
         # doc1 = nlp(source_str)
         # doc2 = nlp(summary_str)
         # similarity_score = doc1.similarity(doc2)
+        # ----------------------------------
         if source_str == summary_str:
             similarity_score = 1.0
         else:
+            # rouge_scores = Rouge().get_scores(summary_str, source_str)
+            # similarity_score = rouge_scores[0]["rouge-1"]["p"]
             similarity_score = 0
 
     else:
@@ -29,32 +35,33 @@ def calculate_string_similarity(source_str=None, summary_str=None) -> float:
 
 def compare_tuples(source_tuple: tuple, generated_tuple: tuple) -> float:
     """
-    This function calculates the consistency score of two tuples.
+    This function calculates consistency score of two tuples.
     """
-    indic = [1 if x else 0 for x in generated_tuple]
-    similarity_score = [
+    # hard-coded values for the semantic roles
+    weights = [1 / 3, 0, 1 / 3, 1 / 3, 0, 0, 0]
+    indic = np.array([1 if x else 0 for x in generated_tuple])
+    pairwise_similarity_scores = [
         calculate_string_similarity(source_str, generated_str)
         for source_str, generated_str in zip(source_tuple, generated_tuple)
     ]
 
-    weights = [0.3, 0, 0.3, 0.3, 0.1, 0, 0]
-    normalized_weight = np.reciprocal(sum(v * weights[i] for i, v in enumerate(indic)))
-    consistency_score = normalized_weight * sum(
-        [indic[i] * similarity_score[i] * weights[i] for i in range(len(indic))]
+    normalized_weight = 1 / (np.sum(indic * weights))
+    consistency_score = normalized_weight * np.sum(
+        [indic * pairwise_similarity_scores * weights]
     )
     return round(consistency_score, 2)
 
 
-def calculate_tuple_final_score(
-    relevant_source_tuples: List[tuple], generated_tuple: tuple
+def determine_tuple_final_score(
+    relevant_source_tuples: List[tuple], generated_tup: tuple
 ) -> float:
     """
     This function compares a generated tuple with all of its relevant tuples from source text and takes the max as final score.
     """
     tuple_final_score = 0
-    for i in relevant_source_tuples:
+    for relevant_source_tup in relevant_source_tuples:
         consistency_score = compare_tuples(
-            source_tuple=i, generated_tuple=generated_tuple
+            source_tuple=relevant_source_tup, generated_tuple=generated_tup
         )
         if consistency_score >= tuple_final_score:
             tuple_final_score = consistency_score
@@ -67,15 +74,27 @@ def calculate_summary_score(source_text: str, generated_summary: str) -> float:
     This function builds a SRL tuple database for source text and generated summary, and 
     calculates the consistency score of the generated summary.
     """
+
+    if len(source_text.split(" ")) >= 450:
+        warnings.warn("Source text might exceed input length limit for SRL extraction!")
+    if len(generated_summary.split(" ")) >= 450:
+        warnings.warn(
+            "Generated summary might exceed input length limit for SRL extraction!"
+        )
+
     print("-----extract tuples from summary text-----")
-    generated_tuples: List[tuple] = extract_tuples.extract_tuples(generated_summary)
+    generated_tuples: List[tuple] = et.extract_tuples(generated_summary)
+    print("---generated tuples are---:", generated_tuples)
+
     print("-----extract tuples from source text-----")
-    source_tuples: List[tuple] = extract_tuples.extract_tuples(source_text)
+    source_tuples: List[tuple] = et.extract_tuples(source_text)
+    print("---source tuples are---：", source_tuples)
 
     tuple_final_scores = []
-    for i in tqdm(generated_tuples, desc="calculate_summary_score"):
-        tuple_final_score = calculate_tuple_final_score(source_tuples, i)
+    for generated_tup in tqdm(generated_tuples, desc="calculate_summary_score"):
+        tuple_final_score = determine_tuple_final_score(source_tuples, generated_tup)
         tuple_final_scores.append(tuple_final_score)
+    print("---Score of each tuple in generated text：", tuple_final_scores)
     return round(mean(tuple_final_scores), 2)
 
 
