@@ -13,33 +13,6 @@ from tqdm import tqdm
 import spacy
 
 
-@lru_cache(maxsize=1)
-def load_language_model():
-    nlp = spacy.load("en_core_web_lg")
-    return nlp
-
-
-def remove_function_words(string: str) -> str:
-    """
-    This function removes ADP(prepositions like in, to, auf etc.), DET(determiner like this, that, a, an, diese etc.) 
-    and PUNCT(punctuation) tags from a string. The SPACY POS Tags List is the same for different languages. 
-    """
-    # if len(string.split()) == 1:
-    #     return string
-    # else:
-    #     nlp = load_language_model()
-    #     doc = nlp(string)
-    #     string = ""
-    #     for token in doc:
-    #         if token.pos_ != "ADP" and token.pos_ != "DET" and token.pos_ != "PUNCT":
-    #             if token.text == "'s":
-    #                 string += token.text
-    #             else:
-    #                 string += " " + token.text
-    #     return string.lstrip()
-    return string
-
-
 class SRLTuple:
     def __init__(
         self,
@@ -73,40 +46,86 @@ class SRLTuple:
         )
 
 
-@lru_cache(maxsize=2)
-def load_srl_models():
-    # coref_model = Predictor.from_path(
-    #     "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2021.03.10.tar.gz",
-    #     cuda_device=1,
-    # )
+@lru_cache(maxsize=1)
+def load_spacy_model():
+    nlp = spacy.load("en_core_web_lg")
+    return nlp
+
+
+@lru_cache(maxsize=1)
+def load_srl_model():
     srl_model = Predictor.from_path(
         "https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz",
         cuda_device=0,
     )
-
-    # return coref_model, srl_model
     return srl_model
 
 
-def text_preprocessing(text: str) -> str:
-    # # step 1: AllenNLP coreference resolution
-    # print("-----text preprocessing: coreference resolution-----")
-    # coref_model, srl_model = load_srl_models()
-    # coref_resolved_text = coref_model.coref_resolved(text)
+@lru_cache(maxsize=1)
+def load_coref_model():
+    coref_model = Predictor.from_path(
+        "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2021.03.10.tar.gz",
+        cuda_device=1,
+    )
+    return coref_model
+
+
+def text_preprocessing(text: str, coref_solver: bool) -> str:
+    """
+    This script processes texts before extracting tuples, like coreference resolution and annotate semantic roles.
+    """
+
+    # step 1: AllenNLP coreference resolution
+    if coref_solver == True:
+        print("-----text preprocessing: coreference resolution-----")
+        coref_model = load_coref_model()
+        text = coref_model.coref_resolved(text)
+
     # step 2: AllenNLP SRL
     print("-----text preprocessing: SRL-----")
-    srl_model = load_srl_models()
+    srl_model = load_srl_model()
     srl_annotated_text = srl_model.predict(sentence=text)
 
     return srl_annotated_text
 
 
-def extract_tuples(text: str) -> List[tuple]:
+def tuple_postprocessing(string: str, func_words_remover: bool) -> str:
+    """
+    Strings in extracted tuples may be long.
+    This function removes ADP(prepositions like in, to, auf etc.), DET(determiner like this, that, a, an, diese etc.) 
+    and PUNCT(punctuation) tags for each tuple element of string type, so that the tuples only contain the most important
+    semantic information. The SPACY POS Tags List is the same for different languages. 
+    """
+    if func_words_remover:
+        if len(string.split()) == 1:
+            return string
+        else:
+            nlp = load_spacy_model()
+            doc = nlp(string)
+            string = ""
+            for token in doc:
+                if (
+                    token.pos_ != "ADP"
+                    and token.pos_ != "DET"
+                    and token.pos_ != "PUNCT"
+                ):
+                    if token.text == "'s":
+                        string += token.text
+                    else:
+                        string += " " + token.text
+            return string.lstrip()
+    else:
+        return string
+
+
+def extract_tuples(
+    text: str, coref_solver: bool, func_words_remover: bool
+) -> List[tuple]:
     """
     This function takes an text as input and returns a list of extracted SRL truth tuples.
 
     """
-    annotated_data: dict = text_preprocessing(text)
+    annotated_data: dict = text_preprocessing(text, coref_solver)
     # build an empty tuple database
     tuple_database = []
 
@@ -117,9 +136,12 @@ def extract_tuples(text: str) -> List[tuple]:
         extracted_SRLTuple = SRLTuple()
         for j in res:
             former = j[j.find("[") + 1 : j.find(":")]
-            latter = j[j.find(" ") + 1 : j.find("]")]
+            # The strings in the extracted tuples are all lowercase
+            latter = j[j.find(" ") + 1 : j.find("]")].casefold()
             if former == "ARG0":
-                extracted_SRLTuple.agent = remove_function_words(latter)
+                extracted_SRLTuple.agent = tuple_postprocessing(
+                    latter, func_words_remover
+                )
                 nr_of_roles += 1
             if former == "ARGM-NEG":
                 extracted_SRLTuple.negation = latter
@@ -128,16 +150,24 @@ def extract_tuples(text: str) -> List[tuple]:
                 extracted_SRLTuple.relation = WordNetLemmatizer().lemmatize(latter, "v")
                 nr_of_roles += 1
             if former == "ARG1":
-                extracted_SRLTuple.patient = remove_function_words(latter)
+                extracted_SRLTuple.patient = tuple_postprocessing(
+                    latter, func_words_remover
+                )
                 nr_of_roles += 1
             if former == "ARG2":
-                extracted_SRLTuple.recipient = remove_function_words(latter)
+                extracted_SRLTuple.recipient = tuple_postprocessing(
+                    latter, func_words_remover
+                )
                 nr_of_roles += 1
             if former == "ARGM-TMP":
-                extracted_SRLTuple.time = latter
+                extracted_SRLTuple.time = tuple_postprocessing(
+                    latter, func_words_remover
+                )
                 nr_of_roles += 1
             if former == "ARGM-LOC":
-                extracted_SRLTuple.location = latter
+                extracted_SRLTuple.location = tuple_postprocessing(
+                    latter, func_words_remover
+                )
                 nr_of_roles += 1
         # Only tuples with at least two roles will be added to the tuple database of an article
         if nr_of_roles >= 2:
@@ -155,7 +185,7 @@ if __name__ == "__main__":
     # examples = "I can't do it"
     # examples = "Paul has bought an apple for Anna. She is very happy."
 
-    truth_tuples: List[tuple] = extract_tuples(examples)
+    truth_tuples: List[tuple] = extract_tuples(examples, False, False)
     print(truth_tuples)
 
 # {
