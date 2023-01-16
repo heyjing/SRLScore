@@ -108,8 +108,8 @@ def text_preprocessing(text: str, coref_solver: bool) -> str:
 def tuple_postprocessing(string: str, func_words_remover: bool) -> str:
     """
     Strings in extracted tuples may be long.
-    This function removes ADP(prepositions like in, to, auf etc.), DET(determiner like this, that, a, an, diese etc.) 
-    and PUNCT(punctuation) tags for each tuple element of string type, so that the tuples only contain the most important
+    This function removes leading ADP(prepositions like in, to, auf etc.) and DET(determiner like this, that, a, an, diese etc.) 
+    tags for each tuple element of string type, so that the tuples only contain the most important
     semantic information. The SPACY POS Tags List is the same for different languages. 
     """
     if func_words_remover:
@@ -118,18 +118,12 @@ def tuple_postprocessing(string: str, func_words_remover: bool) -> str:
         else:
             nlp = load_spacy_model()
             doc = nlp(string)
-            string = ""
-            for token in doc:
-                if (
-                    token.pos_ != "ADP"
-                    and token.pos_ != "DET"
-                    and token.pos_ != "PUNCT"
-                ):
-                    if token.text == "'s":
-                        string += token.text
-                    else:
-                        string += " " + token.text
-            return string.lstrip()
+            for i in range(len(doc)):
+                if doc[i].pos_ != "ADP" and doc[i].pos_ != "DET":
+                    break
+                else:
+                    string = string[len(doc[i]) :].lstrip()
+            return string
     else:
         return string
 
@@ -193,15 +187,15 @@ def extract_tuples(
 
 if __name__ == "__main__":
 
-    examples = "Peter gave his book to his sister Mary yesterday in Berlin. She is a young girl. He wants to make her happy"
+    # examples = "Peter gave his book to his sister Mary yesterday in Berlin. She is a young girl. He wants to make her happy"
     # examples = "He walks slowly"
-    # examples = "In the twilight, I am horrified to see a wolf howling at the end of the garden"
+    examples = "In the twilight, I am horrified to see a wolf howling at the end of the garden."
     # examples = "John can't keep up with Mary 's rapid mood swings"
     # examples = "South Korea has opened its market to foreign cigarettes."
     # examples = "I can't do it"
     # examples = "Paul has bought an apple for Anna. She is very happy."
 
-    truth_tuples: List[tuple] = extract_tuples(examples, False, False)
+    truth_tuples: List[tuple] = extract_tuples(examples, False, True)
     print(truth_tuples)
 
 # {
