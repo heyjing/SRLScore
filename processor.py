@@ -25,6 +25,11 @@ class EntityToken:
         self.entity_ref = entity_ref
 
     def __eq__(self, other):
+        """
+        Overload equality checks, which allows us to do stuff like
+            str("Test") == EntityToken("Test", 0)
+        etc.
+        """
         if isinstance(other, EntityToken):
             # Could be changed to accommodate only matching on entity_ref, too.
             return self.text == other.text and self.entity_ref == other.entity_ref
@@ -34,10 +39,16 @@ class EntityToken:
             raise NotImplementedError(f"Comparison between EntityToken and {type(other)} not defined!")
 
     def __repr__(self):
+        """
+        Defines a "surface form representation" for the class. Among other things, will print nicer.
+        """
         return f"EntityToken({self.text}, {self.entity_ref})"
 
 
 class CustomSpan:
+    """
+    Custom Span class, which allows for easier equality/range checks.
+    """
     start: int
     end: int
 
@@ -48,6 +59,10 @@ class CustomSpan:
         self.end = end
 
     def __contains__(self, item):
+        """
+        Overload behavior for checks like
+            CustomSpan(0, 2) in CustomSpan(-1, 3)
+        """
         if isinstance(item, CustomSpan):
             if item.start >= self.start and item.end <= self.end:
                 return True
@@ -62,12 +77,21 @@ class CustomSpan:
             raise NotImplementedError(f"Comparison between CustomSpan and {type(item)} not supported!")
 
     def __len__(self):
+        """
+        Define the "length" of a span.
+        """
         return self.end - self.start
 
     def __repr__(self):
+        """
+        Surface form representation.
+        """
         return f"({self.start}, {self.end})"
 
     def __eq__(self, other):
+        """
+        Overload comparison functionality, allowing for checks with other CustomSpans and tuples/lists
+        """
         if isinstance(other, CustomSpan):
             if other.start == self.start and other.end == self.end:
                 return True
@@ -82,6 +106,9 @@ class CustomSpan:
             return NotImplementedError(f"Comparison between CustomSpan and {type(other)} not supported!")
 
     def __hash__(self):
+        """
+        Once __eq__ is defined, __hash__ also needs to be re-defined to avoid `Unhashable` errors.
+        """
         return hash((self.start, self.end))
 
 
@@ -91,6 +118,9 @@ def load_spacy_model():
 
 
 class Processor:
+    """
+    Alternative processing class, unifying annotations from the coreference and SRL modules.
+    """
     srl_model: SemanticRoleLabelerPredictor
     coref_model: CorefPredictor
     nlp: spacy.language.Language
@@ -114,7 +144,10 @@ class Processor:
             "ARGM-LOC": "location"
         }
 
-    def process_text(self, text: str):
+    def process_text(self, text: str) -> List[SRLTuple]:
+        """
+        Function that extracts tuples from a text.
+        """
 
         # Coref resolution works on longer inputs, as it internally deals with sentence-level processing.
         coref = self.coref_model.predict(text)
@@ -130,7 +163,7 @@ class Processor:
         # Re-process once we have the entities
         doc = self.nlp(text)
 
-        return self.extract_tuples(srl, doc), doc
+        return self.extract_tuples(srl, doc)
 
     def _initialize_entity_lookups(self, coref: Dict, doc: spacy.language.Doc) -> None:
         """
@@ -261,5 +294,5 @@ if __name__ == '__main__':
     text = "Jeve Jobs acts as Managing Director of Apple. He is also a man."
     proc = Processor()
     # tuples = proc.process_text(sample["article"])
-    tuples, doc = proc.process_text(text)
+    tuples = proc.process_text(text)
     print(tuples)
