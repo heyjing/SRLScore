@@ -82,5 +82,8 @@ if __name__ == "__main__":
         calcu.calculate_factual_score(sample["article"], sample["highlights"])
         for sample in samples
     ]
+
+    # remove summary scores where no tuples can be extracted from summary
+    scores = [score for score in scores if score != -1]
     print(scores)
 
