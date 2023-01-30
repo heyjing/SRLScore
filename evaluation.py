@@ -76,7 +76,7 @@ def get_xsum_samples(
 
 
 if __name__ == "__main__":
-    calcu = CalculateFactualScore("rouge")
+    calcu = CalculateFactualScore(do_coref=False, string_comparison_method="exact")
     samples = get_dailymail_samples()
     scores = [
         calcu.calculate_factual_score(sample["article"], sample["highlights"])
