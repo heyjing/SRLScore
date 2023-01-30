@@ -53,8 +53,8 @@ class SRLTuple:
         )
 
     def __repr__(self):
-        return f"agent: {self.agent}, negation: {self.negation}, relation: {self.relation}, patient: {self.patient}, " \
-               f"recipient: {self.recipient}, time: {self.time}, location: {self.location}"
+        return f"SRLTuple(agent: {self.agent}, negation: {self.negation}, relation: {self.relation}, patient: {self.patient}, " \
+               f"recipient: {self.recipient}, time: {self.time}, location: {self.location})"
 
 
 @lru_cache(maxsize=1)
