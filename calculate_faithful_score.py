@@ -11,9 +11,11 @@ from processor import Processor
 
 class CalculateFactualScore:
     string_comparison_method: str
+    do_coref: bool
 
-    def __init__(self, string_comparison_method):
+    def __init__(self, string_comparison_method: str, do_coref: bool):
         self.string_comparison_method = string_comparison_method
+        self.do_coref = do_coref
 
     def _compare_two_tuples(
         self, source_tuple: SRLTuple, generated_tuple: SRLTuple
@@ -60,7 +62,7 @@ class CalculateFactualScore:
         """
         This function calculates the consistency score of the generated summary.
         """
-        proc = Processor()
+        proc = Processor(self.do_coref)
         source_tuples: List[SRLTuple] = proc.process_text(source_text)
         generated_summary_tuples: List[SRLTuple] = proc.process_text(generated_text)
         print("source_tuples: ", source_tuples)
