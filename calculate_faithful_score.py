@@ -80,7 +80,7 @@ class CalculateFactualScore:
             summary_score = round(mean(tuple_final_scores), 2)
             return summary_score
         else:
-            return "ground truth summary unvalid!"
+            return -1
 
 
 if __name__ == "__main__":
