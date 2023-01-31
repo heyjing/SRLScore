@@ -4,6 +4,7 @@ Class that provides functionality to merge the predictions of a coref and srl mo
 
 from typing import Dict, Tuple, List, Optional
 from functools import lru_cache
+import warnings
 
 import spacy
 from allennlp_models.coref import CorefPredictor
@@ -142,9 +143,9 @@ class Processor:
 
     do_coref: bool
 
-    def __init__(self, do_coref: bool):
-        self.coref_model = load_coref_model(cuda=True)
-        self.srl_model = load_srl_model(cuda=True)
+    def __init__(self, do_coref: bool, use_cuda: bool = False):
+        self.coref_model = load_coref_model(cuda=use_cuda)
+        self.srl_model = load_srl_model(cuda=use_cuda)
         self.nlp = load_spacy_model()
 
         self.attribute_map = {
@@ -167,7 +168,21 @@ class Processor:
         doc = self.nlp(text)
 
         # SRL extraction works only at sentence-level.
-        srl = [self.srl_model.predict(sent.text) for sent in doc.sents]
+        srl = []
+        # Also specifically catch invalid sentences, usually due to tables, which will be ignored.
+        for sent in doc.sents:
+            # Catching errors likely due to incorrect token normalization
+            try:
+                result = self.srl_model.predict(sent.text)
+            # FIXME: This may cause problem in later iterations, so make sure that empty lists are caught
+            #  elsewhere, too!
+            except RuntimeError as e:
+                result = []
+                warnings.warn(f"Processing sentence caused an error in the SRL model! You might want to investigate!\n"
+                              f"Error message: '{e}'\n"
+                              f"Responsible sentence '{sent.text}'")
+            srl.append(result)
+
 
         # Coref resolution works on longer inputs, as it internally deals with sentence-level processing.
         if self.do_coref:
@@ -198,7 +213,12 @@ class Processor:
         all_tuples = []
 
         for srl_annotations, sentence in zip(srl, doc.sents):
+            # Catch cases where annotations were running into problems
+            if srl_annotations == []:
+                continue
+
             for annotation in srl_annotations["verbs"]:
+
                 # We can always set the verb to the relation attribute already
                 curr_tuple = SRLTuple()
 
@@ -213,7 +233,7 @@ class Processor:
                 # Assign SRL values based on the extracted spans
                 for span, attribute in spans:
                     # TODO: Implement coref resolution on partial matches
-                    # self._extract_partial_matches(span, sentence)
+                    # self._extract_partial_matches(span, doc)
 
                     # Exact matching on doc, since we offset the span indices
                     attribute_value = doc[span.start : span.end].text.casefold()
@@ -301,17 +321,26 @@ class Processor:
 
         return all_spans
 
-    def _extract_partial_matches(self, span: CustomSpan, sentence: spacy.tokens.Span):
+    def _extract_partial_matches(self, span: CustomSpan, doc: spacy.language.Doc):
         # Extract the longest possible entity match
-        longest_match_length = 0
         longest_match_span = None
         # TODO: Optimize this lookup, as it currently runs in O(N)!
-        for ref_span, idx in self.ent_lookup.items():
-            if ref_span in span:
-                if len(ref_span) > longest_match_length:
-                    longest_match_span = ref_span
+        if len(span) == 1:
+            if self.ent_lookup.get(span) is not None:
+                longest_match_span = span
+        if len(span) > 1:
+            span_indexes = [
+                index
+                for index in self.ent_lookup.keys()
+                if index.start >= span.start and index.end <= span.end
+            ]
 
-        attribute_value = sentence[span.start : span.end].text
+            if len(span_indexes) >= 2:
+                longest_match_span = max(span_indexes, key=len)
+            if len(span_indexes) == 1:
+                longest_match_span = span_indexes[0]
+
+        attribute_value = doc[span.start: span.end].text
         # In case we found a match, alter the attribute value to a token instead
         # FIXME: THis currently overwrites the entire sequence, but should only work for parts of the sequence.
         if longest_match_span:
@@ -320,6 +349,7 @@ class Processor:
             )
 
         raise NotImplementedError("This function is incomplete!")
+
 
 
 if __name__ == "__main__":
