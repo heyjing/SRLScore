@@ -2,7 +2,7 @@
 Class that provides functionality to merge the predictions of a coref and srl module.
 """
 
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple, List, Union
 from functools import lru_cache
 import warnings
 
@@ -232,15 +232,30 @@ class Processor:
 
                 # Assign SRL values based on the extracted spans
                 for span, attribute in spans:
-                    # TODO: Implement coref resolution on partial matches
-                    # self._extract_partial_matches(span, doc)
+                    # Attempt to find entity matches in the current span
+                    if self.do_coref:
+                        attribute_tuple, entity_span_start = self._extract_partial_matches(span, doc)
+                        if attribute_tuple is not None:
+                            attribute_value = attribute_tuple[0]
+                        else:
+                            attribute_value = None
+                    else:
+                        attribute_tuple = None
+                        attribute_value = None
+                        entity_span_start = None
 
-                    # Exact matching on doc, since we offset the span indices
-                    attribute_value = doc[span.start : span.end].text.casefold()
+                    # If none are found, default back to extracting the full string
+                    if attribute_value is None:
+                        # Exact matching on doc, since we offset the span indices
+                        attribute_value = doc[span.start: span.end].text.casefold()
+                    # Also adjust the end position in case there are no entities found
+                    if entity_span_start is None:
+                        entity_span_start = span.end
 
                     # Converting a verb to its base form, removes leading ADP(prepositions like in, to, auf etc.) and
                     # DET(determiner like this, that, a, an, diese etc.)
-                    for token in doc[span.start: span.end]:
+                    # For partial entity matches, use only the pre-entity text as a filter.
+                    for token in doc[span.start: entity_span_start]:
                         if token.pos_ == "VERB":
                             attribute_value = WordNetLemmatizer().lemmatize(
                                 attribute_value, "v"
@@ -249,19 +264,22 @@ class Processor:
                         elif token.pos_ != "ADP" and token.pos_ != "DET":
                             break
                         else:
-                            attribute_value = attribute_value[len(token) :].lstrip()
-                            span.start = span.start + 1
+                            attribute_value = attribute_value[len(token):].lstrip()
 
-                    if self.do_coref and span in self.ent_lookup.keys():
-                        attribute_value = EntityToken(
-                            attribute_value, self.ent_lookup[span]
-                        )
+                    # Re-assing the cleaned pre-entity text for the updated attribute tuple
+                    if attribute_tuple:
+                        attribute_tuple = (attribute_value, attribute_tuple[1], attribute_tuple[2])
 
                     # Complicated way of assigning the correct attribute with the span value
-                    if attribute in self.attribute_map.keys() and attribute_value != "":
-                        curr_tuple.__setattr__(
-                            self.attribute_map[attribute], attribute_value
-                        )
+                    if attribute in self.attribute_map.keys() and (attribute_value != "" or attribute_tuple):
+                        if attribute_tuple:
+                            curr_tuple.__setattr__(
+                                self.attribute_map[attribute], attribute_tuple
+                            )
+                        else:
+                            curr_tuple.__setattr__(
+                                self.attribute_map[attribute], attribute_value
+                            )
 
                 # Need at least two "relevant" arguments in the relation
                 if sum(x is not None for x in curr_tuple.format_tuple()) >= 2:
@@ -321,7 +339,8 @@ class Processor:
 
         return all_spans
 
-    def _extract_partial_matches(self, span: CustomSpan, doc: spacy.language.Doc):
+    def _extract_partial_matches(self, span: CustomSpan, doc: spacy.language.Doc) \
+            -> Tuple[Union[Tuple, None], Union[int, None]]:
         # Extract the longest possible entity match
         longest_match_span = None
         # TODO: Optimize this lookup, as it currently runs in O(N)!
@@ -341,14 +360,25 @@ class Processor:
                 longest_match_span = span_indexes[0]
 
         attribute_value = doc[span.start: span.end].text
-        # In case we found a match, alter the attribute value to a token instead
-        # FIXME: THis currently overwrites the entire sequence, but should only work for parts of the sequence.
+        # In case we found a match, alter the attribute value to a list of string/EntityToken entries
         if longest_match_span:
-            attribute_value = EntityToken(
-                attribute_value, self.ent_lookup[longest_match_span]
+            # Generates a list of string spans and entity token spans;
+            # For example, "his sister Mary Jane Austin", coupled with the reference "sister Mary", would return
+            # ["his", EntityToken("sister Mary"), "Jane Austin"]
+            pre_entity_text = doc[span.start: longest_match_span.start].text.casefold()
+            post_entity_text = doc[longest_match_span.end: span.end].text.casefold()
+
+            entity_token = EntityToken(
+                doc[longest_match_span.start, longest_match_span.end].text.casefold(),
+                self.ent_lookup[longest_match_span]
             )
 
-        raise NotImplementedError("This function is incomplete!")
+            final_attribute = (pre_entity_text, entity_token, post_entity_text)
+            return final_attribute, longest_match_span.start
+
+        # No suitable partial/full match found
+        else:
+            return None, None
 
 
 
