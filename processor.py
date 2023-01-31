@@ -159,7 +159,7 @@ class Processor:
 
         self.do_coref = do_coref
 
-    def process_text(self, text: str) -> List[SRLTuple]:
+    def process_text(self, text: str) -> List[Tuple]:
         """
         Function that extracts tuples from a text.
         """
@@ -170,7 +170,7 @@ class Processor:
         srl = [self.srl_model.predict(sent.text) for sent in doc.sents]
 
         # Coref resolution works on longer inputs, as it internally deals with sentence-level processing.
-        if self.do_coref == True:
+        if self.do_coref:
             coref = self.coref_model.predict(text)
             self._initialize_entity_lookups(coref, doc)
 
@@ -194,9 +194,7 @@ class Processor:
             for begin, end in clusters:
                 self.ent_lookup[CustomSpan(start=begin, end=end + 1)] = idx
 
-    def extract_tuples(
-        self, srl, doc: Optional[spacy.language.Doc] = None
-    ) -> List[SRLTuple]:
+    def extract_tuples(self, srl, doc: spacy.language.Doc) -> List[Tuple]:
         all_tuples = []
 
         for srl_annotations, sentence in zip(srl, doc.sents):
@@ -208,7 +206,7 @@ class Processor:
                     annotation["tags"], offset=sentence.start
                 )
 
-                # If only the relation is known, skip this sentence.
+                # If only the relational verb is known, skip this sentence.
                 if len(spans) < 2:
                     continue
 
@@ -220,8 +218,9 @@ class Processor:
                     # Exact matching on doc, since we offset the span indices
                     attribute_value = doc[span.start : span.end].text.casefold()
 
-                    # converting a verb to its base form, removes leading ADP(prepositions like in, to, auf etc.) and DET(determiner like this, that, a, an, diese etc.)
-                    for token in doc[span.start : span.end]:
+                    # Converting a verb to its base form, removes leading ADP(prepositions like in, to, auf etc.) and
+                    # DET(determiner like this, that, a, an, diese etc.)
+                    for token in doc[span.start: span.end]:
                         if token.pos_ == "VERB":
                             attribute_value = WordNetLemmatizer().lemmatize(
                                 attribute_value, "v"
@@ -233,7 +232,7 @@ class Processor:
                             attribute_value = attribute_value[len(token) :].lstrip()
                             span.start = span.start + 1
 
-                    if self.do_coref == True and span in self.ent_lookup.keys():
+                    if self.do_coref and span in self.ent_lookup.keys():
                         attribute_value = EntityToken(
                             attribute_value, self.ent_lookup[span]
                         )
@@ -243,6 +242,8 @@ class Processor:
                         curr_tuple.__setattr__(
                             self.attribute_map[attribute], attribute_value
                         )
+
+                # Need at least two "relevant" arguments in the relation
                 if sum(x is not None for x in curr_tuple.format_tuple()) >= 2:
                     all_tuples.append(curr_tuple.format_tuple())
 
