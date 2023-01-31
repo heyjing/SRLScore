@@ -4,10 +4,8 @@ Class that provides functionality to merge the predictions of a coref and srl mo
 
 from typing import Dict, Tuple, List, Optional
 from functools import lru_cache
-import re
 
 import spacy
-from spacy.tokens import Span
 from allennlp_models.coref import CorefPredictor
 from allennlp_models.structured_prediction import SemanticRoleLabelerPredictor
 from nltk.stem.wordnet import WordNetLemmatizer
@@ -172,11 +170,9 @@ class Processor:
         srl = [self.srl_model.predict(sent.text) for sent in doc.sents]
 
         # Coref resolution works on longer inputs, as it internally deals with sentence-level processing.
-        coref = self.coref_model.predict(text)
-        self._initialize_entity_lookups(coref, doc)
-        self._set_spacy_extension()
-        # Re-process once we have the entities
-        doc = self.nlp(text)
+        if self.do_coref == True:
+            coref = self.coref_model.predict(text)
+            self._initialize_entity_lookups(coref, doc)
 
         return self.extract_tuples(srl, doc)
 
@@ -197,21 +193,6 @@ class Processor:
         for idx, clusters in enumerate(coref["clusters"]):
             for begin, end in clusters:
                 self.ent_lookup[CustomSpan(start=begin, end=end + 1)] = idx
-
-    def _set_spacy_extension(self) -> None:
-        """
-        Enables a small spaCy Span annotation that allows entity reverse lookups based on the coref mapping.
-        """
-        # Define an extension that sets a new spaCy span attribute called "coref_entity".
-        # This will return the index of the associated entity if is in the clusters.
-        def coref_entity(span: Span) -> int:
-            if (span.start, span.end) in self.ent_lookup.keys():
-                return self.ent_lookup[(span.start, span.end)]
-            else:
-                return -1
-
-        # Taken from examples on: https://spacy.io/api/span
-        Span.set_extension("coref_entity", getter=coref_entity, force=True)
 
     def extract_tuples(
         self, srl, doc: Optional[spacy.language.Doc] = None
@@ -252,10 +233,7 @@ class Processor:
                             attribute_value = attribute_value[len(token) :].lstrip()
                             span.start = span.start + 1
 
-                    if self.do_coref == False:
-                        self.ent_lookup = {}
-
-                    if span in self.ent_lookup.keys():
+                    if self.do_coref == True and span in self.ent_lookup.keys():
                         attribute_value = EntityToken(
                             attribute_value, self.ent_lookup[span]
                         )
