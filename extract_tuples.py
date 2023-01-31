@@ -54,6 +54,10 @@ class SRLTuple:
             ]
         )
 
+    def __repr__(self):
+        return f"SRLTuple(agent: {self.agent}, negation: {self.negation}, relation: {self.relation}, patient: {self.patient}, " \
+               f"recipient: {self.recipient}, time: {self.time}, location: {self.location})"
+
 
 @lru_cache(maxsize=1)
 def load_spacy_model():
@@ -62,20 +66,30 @@ def load_spacy_model():
 
 
 @lru_cache(maxsize=1)
-def load_srl_model():
-    srl_model = Predictor.from_path(
-        "https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz",
-        cuda_device=0,
-    )
+def load_srl_model(cuda: bool = True):
+    if cuda:
+        srl_model = Predictor.from_path(
+            "https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz",
+            cuda_device=0,
+        )
+    else:
+        srl_model = Predictor.from_path(
+            "https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz",
+        )
     return srl_model
 
 
 @lru_cache(maxsize=1)
-def load_coref_model():
-    coref_model = Predictor.from_path(
-        "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2021.03.10.tar.gz",
-        cuda_device=1,
-    )
+def load_coref_model(cuda: bool = True):
+    if cuda:
+        coref_model = Predictor.from_path(
+            "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2021.03.10.tar.gz",
+            cuda_device=1,
+        )
+    else:
+        coref_model = Predictor.from_path(
+            "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2021.03.10.tar.gz",
+        )
     return coref_model
 
 
