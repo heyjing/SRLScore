@@ -145,8 +145,8 @@ class Processor:
     do_coref: bool
 
     def __init__(self, do_coref: bool):
-        self.coref_model = load_coref_model(cuda=False)
-        self.srl_model = load_srl_model(cuda=False)
+        self.coref_model = load_coref_model(cuda=True)
+        self.srl_model = load_srl_model(cuda=True)
         self.nlp = load_spacy_model()
 
         self.attribute_map = {
@@ -171,17 +171,14 @@ class Processor:
         # SRL extraction works only at sentence-level.
         srl = [self.srl_model.predict(sent.text) for sent in doc.sents]
 
-        if self.do_coref == True:
-            # Coref resolution works on longer inputs, as it internally deals with sentence-level processing.
-            coref = self.coref_model.predict(text)
-            self._initialize_entity_lookups(coref, doc)
-            self._set_spacy_extension()
-            # Re-process once we have the entities
-            doc = self.nlp(text)
+        # Coref resolution works on longer inputs, as it internally deals with sentence-level processing.
+        coref = self.coref_model.predict(text)
+        self._initialize_entity_lookups(coref, doc)
+        self._set_spacy_extension()
+        # Re-process once we have the entities
+        doc = self.nlp(text)
 
-            return self.extract_tuples(srl, doc)
-        else:
-            return self.extract_tuples(srl)
+        return self.extract_tuples(srl, doc)
 
     def _initialize_entity_lookups(self, coref: Dict, doc: spacy.language.Doc) -> None:
         """
@@ -220,74 +217,56 @@ class Processor:
         self, srl, doc: Optional[spacy.language.Doc] = None
     ) -> List[SRLTuple]:
         all_tuples = []
-        if self.do_coref == False:
-            for srl_annotations in srl:
-                for annotation in srl_annotations["verbs"]:
-                    # We can always set the verb to the relation attribute already
-                    curr_tuple = SRLTuple()
-                    res = re.findall(r"\[.*?\]", annotation["description"])
-                    # EXAMPLE res: ['[ARG0: I]', '[V: see]', '[ARG1: a wolf howling]', '[ARGM-TMP: at the end of the garden]']
-                    for j in res:
-                        attribute = j[j.find("[") + 1 : j.find(":")]
-                        # The strings in the extracted tuples are all lowercase
-                        attribute_value = j[j.find(" ") + 1 : j.find("]")].casefold()
-                        if attribute == "V":
+
+        for srl_annotations, sentence in zip(srl, doc.sents):
+            for annotation in srl_annotations["verbs"]:
+                # We can always set the verb to the relation attribute already
+                curr_tuple = SRLTuple()
+
+                spans = self._convert_tags_to_spans(
+                    annotation["tags"], offset=sentence.start
+                )
+
+                # If only the relation is known, skip this sentence.
+                if len(spans) < 2:
+                    continue
+
+                # Assign SRL values based on the extracted spans
+                for span, attribute in spans:
+                    # TODO: Implement coref resolution on partial matches
+                    # self._extract_partial_matches(span, sentence)
+
+                    # Exact matching on doc, since we offset the span indices
+                    attribute_value = doc[span.start : span.end].text.casefold()
+
+                    # converting a verb to its base form, removes leading ADP(prepositions like in, to, auf etc.) and DET(determiner like this, that, a, an, diese etc.)
+                    for token in doc[span.start : span.end]:
+                        if token.pos_ == "VERB":
                             attribute_value = WordNetLemmatizer().lemmatize(
                                 attribute_value, "v"
                             )
-                        if attribute in self.attribute_map.keys():
-                            curr_tuple.__setattr__(
-                                self.attribute_map[attribute], attribute_value
-                            )
-                    if sum(x is not None for x in curr_tuple.format_tuple()) >= 2:
-                        all_tuples.append(curr_tuple.format_tuple())
-        else:
-            for srl_annotations, sentence in zip(srl, doc.sents):
-                for annotation in srl_annotations["verbs"]:
-                    # We can always set the verb to the relation attribute already
-                    curr_tuple = SRLTuple()
+                            break
+                        elif token.pos_ != "ADP" and token.pos_ != "DET":
+                            break
+                        else:
+                            attribute_value = attribute_value[len(token) :].lstrip()
+                            span.start = span.start + 1
 
-                    spans = self._convert_tags_to_spans(
-                        annotation["tags"], offset=sentence.start
-                    )
+                    if self.do_coref == False:
+                        self.ent_lookup = {}
 
-                    # If only the relation is known, skip this sentence.
-                    if len(spans) < 2:
-                        continue
+                    if span in self.ent_lookup.keys():
+                        attribute_value = EntityToken(
+                            attribute_value, self.ent_lookup[span]
+                        )
 
-                    # Assign SRL values based on the extracted spans
-                    for span, attribute in spans:
-                        # TODO: Implement coref resolution on partial matches
-                        # self._extract_partial_matches(span, sentence)
-
-                        # Exact matching on doc, since we offset the span indices
-                        attribute_value = doc[span.start : span.end].text.casefold()
-
-                        # converting a verb to its base form, removes leading ADP(prepositions like in, to, auf etc.) and DET(determiner like this, that, a, an, diese etc.)
-                        for token in doc[span.start : span.end]:
-                            if token.pos_ == "VERB":
-                                attribute_value = WordNetLemmatizer().lemmatize(
-                                    attribute_value, "v"
-                                )
-                                break
-                            elif token.pos_ != "ADP" and token.pos_ != "DET":
-                                break
-                            else:
-                                attribute_value = attribute_value[len(token) :].lstrip()
-                                span.start = span.start + 1
-
-                        if span in self.ent_lookup.keys():
-                            attribute_value = EntityToken(
-                                attribute_value, self.ent_lookup[span]
-                            )
-
-                        # Complicated way of assigning the correct attribute with the span value
-                        if attribute in self.attribute_map.keys():
-                            curr_tuple.__setattr__(
-                                self.attribute_map[attribute], attribute_value
-                            )
-
-                    all_tuples.append(curr_tuple)
+                    # Complicated way of assigning the correct attribute with the span value
+                    if attribute in self.attribute_map.keys() and attribute_value != "":
+                        curr_tuple.__setattr__(
+                            self.attribute_map[attribute], attribute_value
+                        )
+                if sum(x is not None for x in curr_tuple.format_tuple()) >= 2:
+                    all_tuples.append(curr_tuple.format_tuple())
 
         return all_tuples
 
@@ -373,7 +352,7 @@ if __name__ == "__main__":
 
     # text = "Jeve Jobs acts as Managing Director of Apple. He is also a man."
     text = "Peter gave his book to his sister Mary yesterday in Berlin. She is a young girl. He wants to make her happy"
-    proc = Processor(do_coref=False)
+    proc = Processor(do_coref=True)
     # tuples = proc.process_text(sample["article"])
     tuples = proc.process_text(text)
     print(tuples, len(tuples), type(tuples[0]))
