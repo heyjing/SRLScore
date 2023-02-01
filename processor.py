@@ -373,7 +373,7 @@ class Processor:
             post_entity_text = doc[longest_match_span.end: span.end].text.casefold()
 
             entity_token = EntityToken(
-                doc[longest_match_span.start, longest_match_span.end].text.casefold(),
+                doc[longest_match_span.start: longest_match_span.end].text.casefold(),
                 self.ent_lookup[longest_match_span]
             )
 
