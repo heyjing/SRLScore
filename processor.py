@@ -232,43 +232,7 @@ class Processor:
 
                 # Assign SRL values based on the extracted spans
                 for span, attribute in spans:
-                    # Attempt to find entity matches in the current span
-                    if self.do_coref:
-                        attribute_tuple, entity_span_start = self._extract_partial_matches(span, doc)
-                        if attribute_tuple is not None:
-                            attribute_value = attribute_tuple[0]
-                        else:
-                            attribute_value = None
-                    else:
-                        attribute_tuple = None
-                        attribute_value = None
-                        entity_span_start = None
-
-                    # If none are found, default back to extracting the full string
-                    if attribute_value is None:
-                        # Exact matching on doc, since we offset the span indices
-                        attribute_value = doc[span.start: span.end].text.casefold()
-                    # Also adjust the end position in case there are no entities found
-                    if entity_span_start is None:
-                        entity_span_start = span.end
-
-                    # Converting a verb to its base form, removes leading ADP(prepositions like in, to, auf etc.) and
-                    # DET(determiner like this, that, a, an, diese etc.)
-                    # For partial entity matches, use only the pre-entity text as a filter.
-                    for token in doc[span.start: entity_span_start]:
-                        if token.pos_ == "VERB":
-                            attribute_value = WordNetLemmatizer().lemmatize(
-                                attribute_value, "v"
-                            )
-                            break
-                        elif token.pos_ != "ADP" and token.pos_ != "DET":
-                            break
-                        else:
-                            attribute_value = attribute_value[len(token):].lstrip()
-
-                    # Re-assing the cleaned pre-entity text for the updated attribute tuple
-                    if attribute_tuple:
-                        attribute_tuple = (attribute_value, attribute_tuple[1], attribute_tuple[2])
+                    attribute_tuple, attribute_value = self._generate_attribute_tuple(span, doc)
 
                     # Complicated way of assigning the correct attribute with the span value
                     if attribute in self.attribute_map.keys() and (attribute_value != "" or attribute_tuple):
@@ -276,13 +240,13 @@ class Processor:
                             curr_tuple.__setattr__(
                                 self.attribute_map[attribute], attribute_tuple
                             )
-                        else:
+                        else:  # implies attribute_value != ""
                             curr_tuple.__setattr__(
                                 self.attribute_map[attribute], attribute_value
                             )
 
                 # Need at least two "relevant" arguments in the relation
-                if sum(x is not None for x in curr_tuple.format_tuple()) >= 2:
+                if self._count_non_zero_entries(curr_tuple) >= 2:
                     all_tuples.append(curr_tuple.format_tuple())
 
         return all_tuples
@@ -339,6 +303,47 @@ class Processor:
 
         return all_spans
 
+    def _generate_attribute_tuple(self, span: spacy.tokens.Span, doc: spacy.language.Doc) :
+        # Attempt to find entity matches in the current span
+        if self.do_coref:
+            attribute_tuple, entity_span_start = self._extract_partial_matches(span, doc)
+            if attribute_tuple is not None:
+                attribute_value = attribute_tuple[0]
+            else:
+                attribute_value = None
+        else:
+            attribute_tuple = None
+            attribute_value = None
+            entity_span_start = None
+
+        # If none are found, default back to extracting the full string
+        if attribute_value is None:
+            # Exact matching on doc, since we offset the span indices
+            attribute_value = doc[span.start: span.end].text.casefold()
+        # Also adjust the end position in case there are no entities found
+        if entity_span_start is None:
+            entity_span_start = span.end
+
+        # Converting a verb to its base form, removes leading ADP(prepositions like in, to, auf etc.) and
+        # DET(determiner like this, that, a, an, diese etc.)
+        # For partial entity matches, use only the pre-entity text as a filter.
+        for token in doc[span.start: entity_span_start]:
+            if token.pos_ == "VERB":
+                attribute_value = WordNetLemmatizer().lemmatize(
+                    attribute_value, "v"
+                )
+                break
+            elif token.pos_ != "ADP" and token.pos_ != "DET":
+                break
+            else:
+                attribute_value = attribute_value[len(token):].lstrip()
+
+        # Re-assign the cleaned pre-entity text for the updated attribute tuple
+        if attribute_tuple:
+            attribute_tuple = (attribute_value, attribute_tuple[1], attribute_tuple[2])
+
+        return attribute_tuple, attribute_value
+
     def _extract_partial_matches(self, span: CustomSpan, doc: spacy.language.Doc) \
             -> Tuple[Union[Tuple, None], Union[int, None]]:
         # Extract the longest possible entity match
@@ -359,7 +364,6 @@ class Processor:
             if len(span_indexes) == 1:
                 longest_match_span = span_indexes[0]
 
-        attribute_value = doc[span.start: span.end].text
         # In case we found a match, alter the attribute value to a list of string/EntityToken entries
         if longest_match_span:
             # Generates a list of string spans and entity token spans;
@@ -380,6 +384,9 @@ class Processor:
         else:
             return None, None
 
+    @staticmethod
+    def _count_non_zero_entries(tup: SRLTuple) -> int:
+        return sum(x is not None for x in tup.format_tuple())
 
 
 if __name__ == "__main__":
