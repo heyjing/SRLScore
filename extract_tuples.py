@@ -8,54 +8,14 @@ the corresponding summary against its source text.
 
 from typing import List
 from functools import lru_cache
-from statistics import mean
-import warnings
 import re
 
 from allennlp.predictors.predictor import Predictor
 from nltk.stem.wordnet import WordNetLemmatizer
-from nltk import tokenize
 from tqdm import tqdm
-import numpy as np
 import spacy
 
-
-class SRLTuple:
-    def __init__(
-        self,
-        agent=None,
-        negation=None,
-        relation=None,
-        patient=None,
-        recipient=None,
-        time=None,
-        location=None,
-    ):
-        self.agent = agent
-        self.negation = negation
-        self.relation = relation
-        self.patient = patient
-        self.recipient = recipient
-        self.time = time
-        self.location = location
-
-    def format_tuple(self) -> tuple:
-        return tuple(
-            [
-                self.agent,
-                self.negation,
-                self.relation,
-                self.patient,
-                self.recipient,
-                self.time,
-                self.location,
-            ]
-        )
-
-    def __repr__(self):
-        return f"SRLTuple(agent: {self.agent}, negation: {self.negation}, relation: {self.relation}, patient: {self.patient}, " \
-               f"recipient: {self.recipient}, time: {self.time}, location: {self.location})"
-
+from custom_datatypes import SRLTuple
 
 @lru_cache(maxsize=1)
 def load_spacy_model():

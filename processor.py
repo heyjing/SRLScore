@@ -7,120 +7,14 @@ from functools import lru_cache
 import warnings
 
 import spacy
+from spacy.tokens import Span
+from spacy.language import Doc
 from allennlp_models.coref import CorefPredictor
 from allennlp_models.structured_prediction import SemanticRoleLabelerPredictor
 from nltk.stem.wordnet import WordNetLemmatizer
 
-from extract_tuples import load_srl_model, load_coref_model, SRLTuple
-
-
-class EntityToken:
-    """
-    Class that allows for easy comparison to `str`, but contains additional fields
-    """
-
-    text: str
-    entity_ref: str
-
-    def __init__(self, text: str, entity_ref: str):
-        self.text = text
-        self.entity_ref = entity_ref
-
-    def __eq__(self, other):
-        """
-        Overload equality checks, which allows us to do stuff like
-            str("Test") == EntityToken("Test", 0)
-        etc.
-        """
-        if isinstance(other, EntityToken):
-            # Could be changed to accommodate only matching on entity_ref, too.
-            return self.text == other.text and self.entity_ref == other.entity_ref
-        elif isinstance(other, str):
-            return self.text == other
-        else:
-            raise NotImplementedError(
-                f"Comparison between EntityToken and {type(other)} not defined!"
-            )
-
-    def __repr__(self):
-        """
-        Defines a "surface form representation" for the class. Among other things, will print nicer.
-        """
-        return f"EntityToken({self.text}, {self.entity_ref})"
-
-
-class CustomSpan:
-    """
-    Custom Span class, which allows for easier equality/range checks.
-    """
-
-    start: int
-    end: int
-
-    def __init__(self, start: int, end: int):
-        if end < start:
-            raise ValueError(
-                f"Span cannot be initialized for negative range! `end` must be larger or equal to `start`"
-            )
-        self.start = start
-        self.end = end
-
-    def __contains__(self, item):
-        """
-        Overload behavior for checks like
-            CustomSpan(0, 2) in CustomSpan(-1, 3)
-        """
-        if isinstance(item, CustomSpan):
-            if item.start >= self.start and item.end <= self.end:
-                return True
-            else:
-                return False
-        elif isinstance(item, tuple) or isinstance(item, list):
-            if item[0] >= self.start and item[1] <= self.end:
-                return True
-            else:
-                return False
-        else:
-            raise NotImplementedError(
-                f"Comparison between CustomSpan and {type(item)} not supported!"
-            )
-
-    def __len__(self):
-        """
-        Define the "length" of a span.
-        """
-        return self.end - self.start
-
-    def __repr__(self):
-        """
-        Surface form representation.
-        """
-        return f"({self.start}, {self.end})"
-
-    def __eq__(self, other):
-        """
-        Overload comparison functionality, allowing for checks with other CustomSpans and tuples/lists
-        """
-        if isinstance(other, CustomSpan):
-            if other.start == self.start and other.end == self.end:
-                return True
-            else:
-                return False
-        elif isinstance(other, tuple) or isinstance(other, list):
-            if other[0] == self.start and other[1] == self.end:
-                return True
-            else:
-                return False
-        else:
-            return NotImplementedError(
-                f"Comparison between CustomSpan and {type(other)} not supported!"
-            )
-
-    def __hash__(self):
-        """
-        Once __eq__ is defined, __hash__ also needs to be re-defined to avoid `Unhashable` errors.
-        """
-        return hash((self.start, self.end))
+from extract_tuples import load_srl_model, load_coref_model
+from custom_datatypes import SRLTuple, EntityToken, CustomSpan
 
 
 @lru_cache(maxsize=1)
@@ -191,7 +85,7 @@ class Processor:
 
         return self.extract_tuples(srl, doc)
 
-    def _initialize_entity_lookups(self, coref: Dict, doc: spacy.language.Doc) -> None:
+    def _initialize_entity_lookups(self, coref: Dict, doc: Doc) -> None:
         """
         Will create the entity dictionary, mapping from an entity index (integer) to the list of expressions,
         as well as creating the reverse lookup, which allows to get the entity index based on a token span.
@@ -199,7 +93,7 @@ class Processor:
         # Create an entity dictionary that synonymous expressions for all spans in a cluster,
         # based on the results from the coreference resolution step
         self.ent_dict = {
-            idx: [doc[begin : end + 1].text for begin, end in clusters]
+            idx: [doc[begin: end + 1].text.casefold() for begin, end in clusters]
             for idx, clusters in enumerate(coref["clusters"])
         }
 
@@ -209,7 +103,7 @@ class Processor:
             for begin, end in clusters:
                 self.ent_lookup[CustomSpan(start=begin, end=end + 1)] = idx
 
-    def extract_tuples(self, srl, doc: spacy.language.Doc) -> List[Tuple]:
+    def extract_tuples(self, srl, doc: Doc) -> List[Tuple]:
         all_tuples = []
 
         for srl_annotations, sentence in zip(srl, doc.sents):
@@ -247,12 +141,12 @@ class Processor:
 
                 # Need at least two "relevant" arguments in the relation
                 if self._count_non_zero_entries(curr_tuple) >= 2:
-                    all_tuples.append(curr_tuple.format_tuple())
+                    all_tuples.append(curr_tuple.explode_tuple(self.ent_dict))
 
         return all_tuples
 
     @staticmethod
-    def _convert_tags_to_spans(tags: List[str], offset: int) -> List[Tuple]:
+    def _convert_tags_to_spans(tags: List[str], offset: int) -> List[Tuple[CustomSpan, str]]:
         """
         Method that converts a BIO tagging sequence (e.g., ["O", "B-ARG1", "B-ARG2", "B-V", "O", "O"])
         into a sequence of spans with associated labels (e.g., "[([1, 2], "ARG1"), ([2, 3], "ARG2"), ([3, 4], "V")].
@@ -303,7 +197,7 @@ class Processor:
 
         return all_spans
 
-    def _generate_attribute_tuple(self, span: spacy.tokens.Span, doc: spacy.language.Doc) :
+    def _generate_attribute_tuple(self, span: CustomSpan, doc: Doc) -> Tuple[Union[Tuple, None], Union[int, None]]:
         # Attempt to find entity matches in the current span
         if self.do_coref:
             attribute_tuple, entity_span_start = self._extract_partial_matches(span, doc)
