@@ -2,126 +2,18 @@
 Class that provides functionality to merge the predictions of a coref and srl module.
 """
 
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Union
 from functools import lru_cache
 import warnings
 
 import spacy
-from spacy.tokens import Span
+from spacy.language import Doc
 from allennlp_models.coref import CorefPredictor
 from allennlp_models.structured_prediction import SemanticRoleLabelerPredictor
 from nltk.stem.wordnet import WordNetLemmatizer
 
-from extract_tuples import load_srl_model, load_coref_model, SRLTuple
-
-
-class EntityToken:
-    """
-    Class that allows for easy comparison to `str`, but contains additional fields
-    """
-
-    text: str
-    entity_ref: str
-
-    def __init__(self, text: str, entity_ref: str):
-        self.text = text
-        self.entity_ref = entity_ref
-
-    def __eq__(self, other):
-        """
-        Overload equality checks, which allows us to do stuff like
-            str("Test") == EntityToken("Test", 0)
-        etc.
-        """
-        if isinstance(other, EntityToken):
-            # Could be changed to accommodate only matching on entity_ref, too.
-            return self.text == other.text and self.entity_ref == other.entity_ref
-        elif isinstance(other, str):
-            return self.text == other
-        else:
-            raise NotImplementedError(
-                f"Comparison between EntityToken and {type(other)} not defined!"
-            )
-
-    def __repr__(self):
-        """
-        Defines a "surface form representation" for the class. Among other things, will print nicer.
-        """
-        return f"EntityToken({self.text}, {self.entity_ref})"
-
-
-class CustomSpan:
-    """
-    Custom Span class, which allows for easier equality/range checks.
-    """
-
-    start: int
-    end: int
-
-    def __init__(self, start: int, end: int):
-        if end < start:
-            raise ValueError(
-                f"Span cannot be initialized for negative range! `end` must be larger or equal to `start`"
-            )
-        self.start = start
-        self.end = end
-
-    def __contains__(self, item):
-        """
-        Overload behavior for checks like
-            CustomSpan(0, 2) in CustomSpan(-1, 3)
-        """
-        if isinstance(item, CustomSpan):
-            if item.start >= self.start and item.end <= self.end:
-                return True
-            else:
-                return False
-        elif isinstance(item, tuple) or isinstance(item, list):
-            if item[0] >= self.start and item[1] <= self.end:
-                return True
-            else:
-                return False
-        else:
-            raise NotImplementedError(
-                f"Comparison between CustomSpan and {type(item)} not supported!"
-            )
-
-    def __len__(self):
-        """
-        Define the "length" of a span.
-        """
-        return self.end - self.start
-
-    def __repr__(self):
-        """
-        Surface form representation.
-        """
-        return f"({self.start}, {self.end})"
-
-    def __eq__(self, other):
-        """
-        Overload comparison functionality, allowing for checks with other CustomSpans and tuples/lists
-        """
-        if isinstance(other, CustomSpan):
-            if other.start == self.start and other.end == self.end:
-                return True
-            else:
-                return False
-        elif isinstance(other, tuple) or isinstance(other, list):
-            if other[0] == self.start and other[1] == self.end:
-                return True
-            else:
-                return False
-        else:
-            return NotImplementedError(
-                f"Comparison between CustomSpan and {type(other)} not supported!"
-            )
-
-    def __hash__(self):
-        """
-        Once __eq__ is defined, __hash__ also needs to be re-defined to avoid `Unhashable` errors.
-        """
-        return hash((self.start, self.end))
+from extract_tuples import load_srl_model, load_coref_model
+from custom_datatypes import SRLTuple, EntityToken, CustomSpan
 
 
 @lru_cache(maxsize=1)
@@ -142,7 +34,9 @@ class Processor:
     ent_lookup: Dict
     attribute_map: Dict
 
-    def __init__(self, use_cuda: bool = False):
+    do_coref: bool
+
+    def __init__(self, do_coref: bool, use_cuda: bool = False):
         self.coref_model = load_coref_model(cuda=use_cuda)
         self.srl_model = load_srl_model(cuda=use_cuda)
         self.nlp = load_spacy_model()
@@ -157,14 +51,12 @@ class Processor:
             "ARGM-LOC": "location",
         }
 
-    def process_text(self, text: str) -> List[SRLTuple]:
+        self.do_coref = do_coref
+
+    def process_text(self, text: str) -> List[List[Tuple]]:
         """
         Function that extracts tuples from a text.
         """
-
-        # Coref resolution works on longer inputs, as it internally deals with sentence-level processing.
-        coref = self.coref_model.predict(text)
-
         # Initial processing with spacy
         doc = self.nlp(text)
 
@@ -179,19 +71,21 @@ class Processor:
             #  elsewhere, too!
             except RuntimeError as e:
                 result = []
-                warnings.warn(f"Processing sentence caused an error in the SRL model! You might want to investigate!\n"
-                              f"Error message: '{e}'\n"
-                              f"Responsible sentence '{sent.text}'")
+                warnings.warn(
+                    f"Processing sentence caused an error in the SRL model! You might want to investigate!\n"
+                    f"Error message: '{e}'\n"
+                    f"Responsible sentence '{sent.text}'"
+                )
             srl.append(result)
 
-        self._initialize_entity_lookups(coref, doc)
-        self._set_spacy_extension()
-        # Re-process once we have the entities
-        doc = self.nlp(text)
+        # Coref resolution works on longer inputs, as it internally deals with sentence-level processing.
+        if self.do_coref:
+            coref = self.coref_model.predict(text)
+            self._initialize_entity_lookups(coref, doc)
 
         return self.extract_tuples(srl, doc)
 
-    def _initialize_entity_lookups(self, coref: Dict, doc: spacy.language.Doc) -> None:
+    def _initialize_entity_lookups(self, coref: Dict, doc: Doc) -> None:
         """
         Will create the entity dictionary, mapping from an entity index (integer) to the list of expressions,
         as well as creating the reverse lookup, which allows to get the entity index based on a token span.
@@ -199,7 +93,7 @@ class Processor:
         # Create an entity dictionary that synonymous expressions for all spans in a cluster,
         # based on the results from the coreference resolution step
         self.ent_dict = {
-            idx: [doc[begin: end + 1].text for begin, end in clusters]
+            idx: [doc[begin : end + 1].text.casefold() for begin, end in clusters]
             for idx, clusters in enumerate(coref["clusters"])
         }
 
@@ -209,30 +103,16 @@ class Processor:
             for begin, end in clusters:
                 self.ent_lookup[CustomSpan(start=begin, end=end + 1)] = idx
 
-    def _set_spacy_extension(self) -> None:
-        """
-        Enables a small spaCy Span annotation that allows entity reverse lookups based on the coref mapping.
-        """
-        # Define an extension that sets a new spaCy span attribute called "coref_entity".
-        # This will return the index of the associated entity if is in the clusters.
-        def coref_entity(span: Span) -> int:
-            if (span.start, span.end) in self.ent_lookup.keys():
-                return self.ent_lookup[(span.start, span.end)]
-            else:
-                return -1
-
-        # Taken from examples on: https://spacy.io/api/span
-        Span.set_extension("coref_entity", getter=coref_entity, force=True)
-
-    def extract_tuples(self, srl, doc: spacy.language.Doc) -> List[SRLTuple]:
+    def extract_tuples(self, srl, doc: Doc) -> List[List[Tuple]]:
         all_tuples = []
 
         for srl_annotations, sentence in zip(srl, doc.sents):
-            # catch cases where annotations were running into problems
+            # Catch cases where annotations were running into problems
             if srl_annotations == []:
                 continue
 
             for annotation in srl_annotations["verbs"]:
+
                 # We can always set the verb to the relation attribute already
                 curr_tuple = SRLTuple()
 
@@ -240,52 +120,42 @@ class Processor:
                     annotation["tags"], offset=sentence.start
                 )
 
-                # If only the relation is known, skip this sentence.
+                # If only the relational verb is known, skip this sentence.
                 if len(spans) < 2:
                     continue
 
                 # Assign SRL values based on the extracted spans
                 for span, attribute in spans:
-                    # TODO: Implement coref resolution on partial matches
-                    # self._extract_partial_matches(span, doc)
-
-                    # Exact matching on doc, since we offset the span indices
-                    attribute_value = doc[span.start : span.end].text.casefold()
-
-                    # Converting a verb to its base form, removes leading ADP(prepositions like in, to, auf etc.)
-                    # and DET(determiner like this, that, a, an, diese etc.)
-                    for token in doc[span.start: span.end]:
-                        if token.pos_ == "VERB":
-                            # For verbs, use the lemmatized expression for better comparison
-                            attribute_value = WordNetLemmatizer().lemmatize(
-                                attribute_value, "v"
-                            )
-                            break
-                        elif token.pos_ == "ADP" or token.pos_ == "DET":
-                            # Adjust the token span to no longer include the (currently encountered) ADP
-                            attribute_value = attribute_value[len(token):].lstrip()
-                            span.start = span.start + 1
-                        else:
-                            # Break if "content words" are encountered
-                            break
-
-                    if span in self.ent_lookup.keys():
-                        attribute_value = EntityToken(
-                            attribute_value, self.ent_lookup[span]
-                        )
+                    attribute_tuple, attribute_value = self._generate_attribute_tuple(
+                        span, doc
+                    )
 
                     # Complicated way of assigning the correct attribute with the span value
-                    if attribute in self.attribute_map.keys():
-                        curr_tuple.__setattr__(
-                            self.attribute_map[attribute], attribute_value
-                        )
+                    if attribute in self.attribute_map.keys() and (
+                        attribute_value != "" or attribute_tuple
+                    ):
+                        if attribute_tuple:
+                            curr_tuple.__setattr__(
+                                self.attribute_map[attribute], attribute_tuple
+                            )
+                        else:  # implies attribute_value != ""
+                            curr_tuple.__setattr__(
+                                self.attribute_map[attribute], attribute_value
+                            )
 
-                all_tuples.append(curr_tuple)
+                # Need at least two "relevant" arguments in the relation
+                if self._count_non_zero_entries(curr_tuple) >= 2:
+                    if self.do_coref == True:
+                        all_tuples.append(curr_tuple.explode_tuple(self.ent_dict))
+                    else:  # implies we do not need to explode tuples
+                        all_tuples.append([curr_tuple.format_tuple()])
 
         return all_tuples
 
     @staticmethod
-    def _convert_tags_to_spans(tags: List[str], offset: int) -> List[Tuple]:
+    def _convert_tags_to_spans(
+        tags: List[str], offset: int
+    ) -> List[Tuple[CustomSpan, str]]:
         """
         Method that converts a BIO tagging sequence (e.g., ["O", "B-ARG1", "B-ARG2", "B-V", "O", "O"])
         into a sequence of spans with associated labels (e.g., "[([1, 2], "ARG1"), ([2, 3], "ARG2"), ([3, 4], "V")].
@@ -336,7 +206,52 @@ class Processor:
 
         return all_spans
 
-    def _extract_partial_matches(self, span: CustomSpan, doc: spacy.language.Doc):
+    def _generate_attribute_tuple(
+        self, span: CustomSpan, doc: Doc
+    ) -> Tuple[Union[Tuple, None], Union[int, None]]:
+        # Attempt to find entity matches in the current span
+        if self.do_coref:
+            attribute_tuple, entity_span_start = self._extract_partial_matches(
+                span, doc
+            )
+            if attribute_tuple is not None:
+                attribute_value = attribute_tuple[0]
+            else:
+                attribute_value = None
+        else:
+            attribute_tuple = None
+            attribute_value = None
+            entity_span_start = None
+
+        # If none are found, default back to extracting the full string
+        if attribute_value is None:
+            # Exact matching on doc, since we offset the span indices
+            attribute_value = doc[span.start : span.end].text.casefold()
+        # Also adjust the end position in case there are no entities found
+        if entity_span_start is None:
+            entity_span_start = span.end
+
+        # Converting a verb to its base form, removes leading ADP(prepositions like in, to, auf etc.) and
+        # DET(determiner like this, that, a, an, diese etc.)
+        # For partial entity matches, use only the pre-entity text as a filter.
+        for token in doc[span.start : entity_span_start]:
+            if token.pos_ == "VERB":
+                attribute_value = WordNetLemmatizer().lemmatize(attribute_value, "v")
+                break
+            elif token.pos_ != "ADP" and token.pos_ != "DET":
+                break
+            else:
+                attribute_value = attribute_value[len(token) :].lstrip()
+
+        # Re-assign the cleaned pre-entity text for the updated attribute tuple
+        if attribute_tuple:
+            attribute_tuple = (attribute_value, attribute_tuple[1], attribute_tuple[2])
+
+        return attribute_tuple, attribute_value
+
+    def _extract_partial_matches(
+        self, span: CustomSpan, doc: spacy.language.Doc
+    ) -> Tuple[Union[Tuple, None], Union[int, None]]:
         # Extract the longest possible entity match
         longest_match_span = None
         # TODO: Optimize this lookup, as it currently runs in O(N)!
@@ -355,15 +270,29 @@ class Processor:
             if len(span_indexes) == 1:
                 longest_match_span = span_indexes[0]
 
-        attribute_value = doc[span.start : span.end].text
-        # In case we found a match, alter the attribute value to a token instead
-        # FIXME: THis currently overwrites the entire sequence, but should only work for parts of the sequence.
+        # In case we found a match, alter the attribute value to a list of string/EntityToken entries
         if longest_match_span:
-            attribute_value = EntityToken(
-                attribute_value, self.ent_lookup[longest_match_span]
+            # Generates a list of string spans and entity token spans;
+            # For example, "his sister Mary Jane Austin", coupled with the reference "sister Mary", would return
+            # ["his", EntityToken("sister Mary"), "Jane Austin"]
+            pre_entity_text = doc[span.start : longest_match_span.start].text.casefold()
+            post_entity_text = doc[longest_match_span.end : span.end].text.casefold()
+
+            entity_token = EntityToken(
+                doc[longest_match_span.start : longest_match_span.end].text.casefold(),
+                self.ent_lookup[longest_match_span],
             )
 
-        raise NotImplementedError("This function is incomplete!")
+            final_attribute = (pre_entity_text, entity_token, post_entity_text)
+            return final_attribute, longest_match_span.start
+
+        # No suitable partial/full match found
+        else:
+            return None, None
+
+    @staticmethod
+    def _count_non_zero_entries(tup: SRLTuple) -> int:
+        return sum(x is not None for x in tup.format_tuple())
 
 
 if __name__ == "__main__":
@@ -374,8 +303,9 @@ if __name__ == "__main__":
     }
 
     # text = "Jeve Jobs acts as Managing Director of Apple. He is also a man."
-    text = "Peter gave his book to his sister Mary yesterday in Berlin. She is a young girl. He wants to make her happy"
-    proc = Processor()
+    # text = "Peter gave his book to his sister Mary yesterday in Berlin. She is a young girl. He wants to make her happy"
+    text = "In the twilight, I am horrified to see a wolf howling at the end of the garden. The wolf is very big."
+    proc = Processor(do_coref=True)
     # tuples = proc.process_text(sample["article"])
     tuples = proc.process_text(text)
-    print(tuples)
+    print(tuples, len(tuples), type(tuples), type(tuples[0]))
