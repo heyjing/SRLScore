@@ -1,19 +1,20 @@
 """
 A collection of custom data types for interfacing SRL and coreference information.
 """
+from typing import List
 import itertools
 
 
 class SRLTuple:
     def __init__(
-            self,
-            agent=None,
-            negation=None,
-            relation=None,
-            patient=None,
-            recipient=None,
-            time=None,
-            location=None,
+        self,
+        agent=None,
+        negation=None,
+        relation=None,
+        patient=None,
+        recipient=None,
+        time=None,
+        location=None,
     ):
         self.agent = agent
         self.negation = negation
@@ -39,7 +40,7 @@ class SRLTuple:
             ]
         )
 
-    def explode_tuple(self, ent_dict: dict) -> list[tuple]:
+    def explode_tuple(self, ent_dict: dict) -> List[tuple]:
         """
         Generates a list of
         If the SRLTuple contains EntityTokens instead of raw strings, it will generate multiple string tuples
@@ -55,8 +56,9 @@ class SRLTuple:
             #  (his, None, ...)]
         """
         all_combinations = []
-        # FIXME: This seems awfully error-prone for changed attribute names?
-        attributes = ["agent", "negation", "relation", "patient", "recipient", "time", "location"]
+
+        attributes = list((self.__dict__).keys())
+
         for attribute in attributes:
             all_combinations.append(self._get_attribute_values(attribute, ent_dict))
 
@@ -80,23 +82,29 @@ class SRLTuple:
             all_alternatives = []
             for alternative in entity_alternatives:
                 # Stripping is necessary in case pre/post strings are empty
-                all_alternatives.append(f"{pre_string} {alternative} {post_string}".strip())
+                all_alternatives.append(
+                    f"{pre_string} {alternative} {post_string}".strip()
+                )
             return all_alternatives
         else:
-            raise ValueError(f"Invalid attribute type encountered: attribute '{attr_name}' "
-                             f"holds a value of type '{type(curr_attribute_value)}'")
+            raise ValueError(
+                f"Invalid attribute type encountered: attribute '{attr_name}' "
+                f"holds a value of type '{type(curr_attribute_value)}'"
+            )
 
     def __repr__(self):
         """
         Represent a SRLTuple by printing its attributes in sequence.
         """
-        return f"SRLTuple(agent: {self.agent}, " \
-               f"negation: {self.negation}, " \
-               f"relation: {self.relation}, " \
-               f"patient: {self.patient}, " \
-               f"recipient: {self.recipient}, " \
-               f"time: {self.time}, " \
-               f"location: {self.location})"
+        return (
+            f"SRLTuple(agent: {self.agent}, "
+            f"negation: {self.negation}, "
+            f"relation: {self.relation}, "
+            f"patient: {self.patient}, "
+            f"recipient: {self.recipient}, "
+            f"time: {self.time}, "
+            f"location: {self.location})"
+        )
 
 
 class EntityToken:
@@ -207,3 +215,20 @@ class CustomSpan:
         """
         return hash((self.start, self.end))
 
+
+if __name__ == "__main__":
+    all_combinations = [
+        ["his sister mary", "his mary"],
+        ["give"],
+        [None],
+        ["perter", "him"],
+        ["a gift"],
+    ]
+    print(list(itertools.product(*all_combinations)))
+    entity_dict = {0: {"peter", "his"}}
+    tup = SRLTuple(
+        ("", EntityToken("peter", 0), ""), None, None, None, None, None, None
+    )
+    attributes = list((tup.__dict__).keys())
+    print(attributes, type(attributes), len(attributes))
+    print(tup.explode_tuple(entity_dict))

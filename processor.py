@@ -7,7 +7,6 @@ from functools import lru_cache
 import warnings
 
 import spacy
-from spacy.tokens import Span
 from spacy.language import Doc
 from allennlp_models.coref import CorefPredictor
 from allennlp_models.structured_prediction import SemanticRoleLabelerPredictor
@@ -54,7 +53,7 @@ class Processor:
 
         self.do_coref = do_coref
 
-    def process_text(self, text: str) -> List[Tuple]:
+    def process_text(self, text: str) -> List[List[Tuple]]:
         """
         Function that extracts tuples from a text.
         """
@@ -72,11 +71,12 @@ class Processor:
             #  elsewhere, too!
             except RuntimeError as e:
                 result = []
-                warnings.warn(f"Processing sentence caused an error in the SRL model! You might want to investigate!\n"
-                              f"Error message: '{e}'\n"
-                              f"Responsible sentence '{sent.text}'")
+                warnings.warn(
+                    f"Processing sentence caused an error in the SRL model! You might want to investigate!\n"
+                    f"Error message: '{e}'\n"
+                    f"Responsible sentence '{sent.text}'"
+                )
             srl.append(result)
-
 
         # Coref resolution works on longer inputs, as it internally deals with sentence-level processing.
         if self.do_coref:
@@ -93,7 +93,7 @@ class Processor:
         # Create an entity dictionary that synonymous expressions for all spans in a cluster,
         # based on the results from the coreference resolution step
         self.ent_dict = {
-            idx: [doc[begin: end + 1].text.casefold() for begin, end in clusters]
+            idx: [doc[begin : end + 1].text.casefold() for begin, end in clusters]
             for idx, clusters in enumerate(coref["clusters"])
         }
 
@@ -103,7 +103,7 @@ class Processor:
             for begin, end in clusters:
                 self.ent_lookup[CustomSpan(start=begin, end=end + 1)] = idx
 
-    def extract_tuples(self, srl, doc: Doc) -> List[Tuple]:
+    def extract_tuples(self, srl, doc: Doc) -> List[List[Tuple]]:
         all_tuples = []
 
         for srl_annotations, sentence in zip(srl, doc.sents):
@@ -126,10 +126,14 @@ class Processor:
 
                 # Assign SRL values based on the extracted spans
                 for span, attribute in spans:
-                    attribute_tuple, attribute_value = self._generate_attribute_tuple(span, doc)
+                    attribute_tuple, attribute_value = self._generate_attribute_tuple(
+                        span, doc
+                    )
 
                     # Complicated way of assigning the correct attribute with the span value
-                    if attribute in self.attribute_map.keys() and (attribute_value != "" or attribute_tuple):
+                    if attribute in self.attribute_map.keys() and (
+                        attribute_value != "" or attribute_tuple
+                    ):
                         if attribute_tuple:
                             curr_tuple.__setattr__(
                                 self.attribute_map[attribute], attribute_tuple
@@ -141,12 +145,17 @@ class Processor:
 
                 # Need at least two "relevant" arguments in the relation
                 if self._count_non_zero_entries(curr_tuple) >= 2:
-                    all_tuples.append(curr_tuple.explode_tuple(self.ent_dict))
+                    if self.do_coref == True:
+                        all_tuples.append(curr_tuple.explode_tuple(self.ent_dict))
+                    else:  # implies we do not need to explode tuples
+                        all_tuples.append([curr_tuple.format_tuple()])
 
         return all_tuples
 
     @staticmethod
-    def _convert_tags_to_spans(tags: List[str], offset: int) -> List[Tuple[CustomSpan, str]]:
+    def _convert_tags_to_spans(
+        tags: List[str], offset: int
+    ) -> List[Tuple[CustomSpan, str]]:
         """
         Method that converts a BIO tagging sequence (e.g., ["O", "B-ARG1", "B-ARG2", "B-V", "O", "O"])
         into a sequence of spans with associated labels (e.g., "[([1, 2], "ARG1"), ([2, 3], "ARG2"), ([3, 4], "V")].
@@ -197,10 +206,14 @@ class Processor:
 
         return all_spans
 
-    def _generate_attribute_tuple(self, span: CustomSpan, doc: Doc) -> Tuple[Union[Tuple, None], Union[int, None]]:
+    def _generate_attribute_tuple(
+        self, span: CustomSpan, doc: Doc
+    ) -> Tuple[Union[Tuple, None], Union[int, None]]:
         # Attempt to find entity matches in the current span
         if self.do_coref:
-            attribute_tuple, entity_span_start = self._extract_partial_matches(span, doc)
+            attribute_tuple, entity_span_start = self._extract_partial_matches(
+                span, doc
+            )
             if attribute_tuple is not None:
                 attribute_value = attribute_tuple[0]
             else:
@@ -213,7 +226,7 @@ class Processor:
         # If none are found, default back to extracting the full string
         if attribute_value is None:
             # Exact matching on doc, since we offset the span indices
-            attribute_value = doc[span.start: span.end].text.casefold()
+            attribute_value = doc[span.start : span.end].text.casefold()
         # Also adjust the end position in case there are no entities found
         if entity_span_start is None:
             entity_span_start = span.end
@@ -221,16 +234,14 @@ class Processor:
         # Converting a verb to its base form, removes leading ADP(prepositions like in, to, auf etc.) and
         # DET(determiner like this, that, a, an, diese etc.)
         # For partial entity matches, use only the pre-entity text as a filter.
-        for token in doc[span.start: entity_span_start]:
+        for token in doc[span.start : entity_span_start]:
             if token.pos_ == "VERB":
-                attribute_value = WordNetLemmatizer().lemmatize(
-                    attribute_value, "v"
-                )
+                attribute_value = WordNetLemmatizer().lemmatize(attribute_value, "v")
                 break
             elif token.pos_ != "ADP" and token.pos_ != "DET":
                 break
             else:
-                attribute_value = attribute_value[len(token):].lstrip()
+                attribute_value = attribute_value[len(token) :].lstrip()
 
         # Re-assign the cleaned pre-entity text for the updated attribute tuple
         if attribute_tuple:
@@ -238,8 +249,9 @@ class Processor:
 
         return attribute_tuple, attribute_value
 
-    def _extract_partial_matches(self, span: CustomSpan, doc: spacy.language.Doc) \
-            -> Tuple[Union[Tuple, None], Union[int, None]]:
+    def _extract_partial_matches(
+        self, span: CustomSpan, doc: spacy.language.Doc
+    ) -> Tuple[Union[Tuple, None], Union[int, None]]:
         # Extract the longest possible entity match
         longest_match_span = None
         # TODO: Optimize this lookup, as it currently runs in O(N)!
@@ -263,12 +275,12 @@ class Processor:
             # Generates a list of string spans and entity token spans;
             # For example, "his sister Mary Jane Austin", coupled with the reference "sister Mary", would return
             # ["his", EntityToken("sister Mary"), "Jane Austin"]
-            pre_entity_text = doc[span.start: longest_match_span.start].text.casefold()
-            post_entity_text = doc[longest_match_span.end: span.end].text.casefold()
+            pre_entity_text = doc[span.start : longest_match_span.start].text.casefold()
+            post_entity_text = doc[longest_match_span.end : span.end].text.casefold()
 
             entity_token = EntityToken(
-                doc[longest_match_span.start: longest_match_span.end].text.casefold(),
-                self.ent_lookup[longest_match_span]
+                doc[longest_match_span.start : longest_match_span.end].text.casefold(),
+                self.ent_lookup[longest_match_span],
             )
 
             final_attribute = (pre_entity_text, entity_token, post_entity_text)
@@ -291,8 +303,9 @@ if __name__ == "__main__":
     }
 
     # text = "Jeve Jobs acts as Managing Director of Apple. He is also a man."
-    text = "Peter gave his book to his sister Mary yesterday in Berlin. She is a young girl. He wants to make her happy"
+    # text = "Peter gave his book to his sister Mary yesterday in Berlin. She is a young girl. He wants to make her happy"
+    text = "In the twilight, I am horrified to see a wolf howling at the end of the garden. The wolf is very big."
     proc = Processor(do_coref=True)
     # tuples = proc.process_text(sample["article"])
     tuples = proc.process_text(text)
-    print(tuples, len(tuples), type(tuples[0]))
+    print(tuples, len(tuples), type(tuples), type(tuples[0]))

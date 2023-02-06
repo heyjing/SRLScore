@@ -1,10 +1,10 @@
 from typing import List
 from statistics import mean
 
+from itertools import chain
 import numpy as np
 from tqdm import tqdm
 
-from extract_tuples import SRLTuple
 from tuple_comparison import StringSimilarityMethods
 from processor import Processor
 
@@ -17,20 +17,18 @@ class CalculateFactualScore:
         self.string_comparison_method = string_comparison_method
         self.do_coref = do_coref
 
-    def _compare_two_tuples(
-        self, source_tuple: SRLTuple, generated_tuple: SRLTuple
-    ) -> float:
+    def _compare_two_tuples(self, source_tuple: tuple, generated_tuple: tuple) -> float:
         """
         This function calculates consistency score of two tuples.
         """
         # hard-coded values for the semantic roles
-        weights = [1 / 3, 0, 1 / 3, 1 / 3, 0, 0, 0]
+        weights = [1 / 7, 1 / 7, 1 / 7, 1 / 7, 1 / 7, 1 / 7, 1 / 7]
         indic = np.array([1 if x else 0 for x in generated_tuple])
 
         pairwise_similarity_scores = [
-            StringSimilarityMethods(
-                source_str, generated_str, self.string_comparison_method
-            ).calculate()
+            StringSimilarityMethods(self.string_comparison_method).calculate(
+                source_str, generated_str
+            )
             for source_str, generated_str in zip(source_tuple, generated_tuple)
         ]
 
@@ -41,7 +39,7 @@ class CalculateFactualScore:
         return round(consistency_score, 2)
 
     def _compare_tuple_with_relevant_tuples(
-        self, source_tuples: List[SRLTuple], generated_tup: SRLTuple
+        self, source_tuples: List[tuple], generated_tup: tuple
     ) -> float:
         """
         This function compares a generated tuple with all of its relevant tuples from source text and takes the max as final score.
@@ -63,31 +61,39 @@ class CalculateFactualScore:
         This function calculates the consistency score of the generated summary.
         """
         proc = Processor(self.do_coref)
-        source_tuples: List[SRLTuple] = proc.process_text(source_text)
-        generated_summary_tuples: List[SRLTuple] = proc.process_text(generated_text)
+
+        source_tuples: List[List[tuple]] = proc.process_text(source_text)
+        # Flattening a list of lists
+        source_tuples: List[tuple] = list(chain(*source_tuples))
+
+        generated_summary_tuples: List[List[tuple]] = proc.process_text(generated_text)
         print("source_tuples: ", source_tuples)
         print("generated_summary_tuples: ", generated_summary_tuples)
 
         if generated_summary_tuples != []:
-            tuple_final_scores = []
-            for generated_summary_tup in tqdm(
-                generated_summary_tuples, desc="calculate_summary_score"
-            ):
-                tuple_final_score = self._compare_tuple_with_relevant_tuples(
-                    source_tuples, generated_summary_tup
-                )
-                tuple_final_scores.append(tuple_final_score)
-            print("---Score of each tuple in generated text：", tuple_final_scores)
+            Summary_score = []
 
-            summary_score = round(mean(tuple_final_scores), 2)
-            return summary_score
+            for tup_clusters in generated_summary_tuples:
+                tup_clusters_score = []
+                for tup in tqdm(tup_clusters, desc="calculate_summary_score"):
+                    tup_score = self._compare_tuple_with_relevant_tuples(
+                        source_tuples, tup
+                    )
+                    tup_clusters_score.append(tup_score)
+                print("---tup_clusters_score：", tup_clusters_score)
+
+                tup_clusters_final_score = round(max(tup_clusters_score), 2)
+                print("---tup_clusters_final_score: ", tup_clusters_final_score)
+                Summary_score.append(tup_clusters_final_score)
+            print("summary score: ", Summary_score, "------a sample is fertig----")
+            return round(mean(Summary_score), 2)
         else:
             return -1
 
 
 if __name__ == "__main__":
 
-    calcu = CalculateFactualScore("rouge")
+    calcu = CalculateFactualScore("rouge", False)
     score = calcu._compare_two_tuples(
         ("Peter", None, "send", "one gift", " to his sister", None, None),
         ("Peter", None, "send", "a gift", None, None, None),
