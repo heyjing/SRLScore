@@ -6,8 +6,8 @@ import json
 import sys
 import os
 
+import rouge_score.scoring
 from scipy.stats import pearsonr, spearmanr
-from nltk.stem.cistem import Cistem
 from rouge_score import rouge_scorer
 from tqdm import tqdm
 import numpy as np
@@ -70,15 +70,10 @@ def get_scorer(fast: bool = False) -> rouge_scorer.RougeScorer:
             ["rouge1", "rouge2", "rougeL"], use_stemmer=True
         )
 
-    stemmer = Cistem(
-        case_insensitive=True
-    )  # Insensitive because RougeScorer lower cases anyways.
-    scorer._stemmer = stemmer
-
     return scorer
 
 
-def generate_rouge_scores(generated_summary: str, source_text: str) -> Dict[str, float]:
+def generate_rouge_scores(generated_summary: str, source_text: str) -> Dict[str, rouge_score.scoring.Score]:
     rouge_score = get_scorer().score(source_text, generated_summary)
     return rouge_score
 
@@ -95,13 +90,8 @@ def get_whole_summary_sents(sample: dict) -> str:
 
 def compute_rouge_scores(samples: list) -> List[float]:
     rouge_scores: List[float] = [
-        round(
-            generate_rouge_scores(get_whole_summary_sents(sample), sample["article"])[
-                "rouge1"
-            ][2],
-            2,
-        )
-        for sample in samples
+            generate_rouge_scores(get_whole_summary_sents(sample), sample["article"])["rouge1"].fmeasure
+            for sample in samples
     ]
     return rouge_scores
 
@@ -111,6 +101,8 @@ def compute_srl_metric_scores(samples: list) -> List[float]:
     do_coref = True if input_do_coref == "True" else False
 
     method: str = input("Which similarity method? (exact, spacy or rouge): ")
+    if method not in ["exact", "spacy", "rouge"]:
+        raise ValueError("Only comparison methods 'exact', 'spacy' and 'rouge' are supported!")
 
     calcu = CalculateFactualScore(do_coref=do_coref, string_comparison_method=method)
     srl_scores: List[float] = [
@@ -133,7 +125,7 @@ def compute_metric_scores(samples: list, metric: str) -> List[float]:
     return metrics.get(metric)(samples)
 
 
-def print_correlation_score(lst1: List[float], lst2: List[float]) -> float:
+def print_correlation_score(lst1: List[float], lst2: List[float]) -> None:
 
     pearson_corr, pearson_p_value = pearsonr(lst1, lst2)
     spearman_corr, spearman_p_value = spearmanr(lst1, lst2)

@@ -57,9 +57,7 @@ class SRLTuple:
         """
         all_combinations = []
 
-        attributes = list((self.__dict__).keys())
-
-        for attribute in attributes:
+        for attribute in self.__dict__.keys():
             all_combinations.append(self._get_attribute_values(attribute, ent_dict))
 
         return list(itertools.product(*all_combinations))
@@ -81,7 +79,7 @@ class SRLTuple:
 
             all_alternatives = []
             for alternative in entity_alternatives:
-                # Stripping is necessary in case pre/post strings are empty
+                # Stripping is necessary in case pre-/post-strings are empty
                 all_alternatives.append(
                     f"{pre_string} {alternative} {post_string}".strip()
                 )
@@ -229,6 +227,6 @@ if __name__ == "__main__":
     tup = SRLTuple(
         ("", EntityToken("peter", 0), ""), None, None, None, None, None, None
     )
-    attributes = list((tup.__dict__).keys())
+    attributes = list(tup.__dict__.keys())
     print(attributes, type(attributes), len(attributes))
     print(tup.explode_tuple(entity_dict))
