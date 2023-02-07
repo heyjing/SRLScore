@@ -6,6 +6,9 @@ import itertools
 
 
 class SRLTuple:
+    # Need to manually track attributes for consistent output later on
+    attributes = ["agent", "negation", "relation", "patient", "recipient", "time", "location"]
+
     def __init__(
         self,
         agent=None,
@@ -57,7 +60,7 @@ class SRLTuple:
         """
         all_combinations = []
 
-        for attribute in self.__dict__.keys():
+        for attribute in self.attributes:
             all_combinations.append(self._get_attribute_values(attribute, ent_dict))
 
         return list(itertools.product(*all_combinations))
