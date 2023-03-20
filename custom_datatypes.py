@@ -230,6 +230,5 @@ if __name__ == "__main__":
     tup = SRLTuple(
         ("", EntityToken("peter", 0), ""), None, None, None, None, None, None
     )
-    attributes = list(tup.__dict__.keys())
-    print(attributes, type(attributes), len(attributes))
+
     print(tup.explode_tuple(entity_dict))

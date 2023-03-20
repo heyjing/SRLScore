@@ -1,2 +1,9 @@
 .idea/
 *__pycache__/
+*.aux
+*.bbl
+*.blg
+*.log
+*.synctex.gz
+*.pdf
+*.bak~
