@@ -4,7 +4,6 @@ This is a script that implements different string similarity comparison methods.
 
 
 from rouge_score import rouge_scorer
-from jiwer import wer
 import extract_tuples as et
 
 
@@ -41,20 +40,11 @@ class StringSimilarityMethods:
             similarity_score = 0
         return similarity_score
 
-    def word_error_rate_string_similarity(self, source_str, summary_str):
-        if source_str and summary_str:
-            error = wer(source_str, summary_str)
-            similarity_score = round(error, 2)
-        else:
-            similarity_score = 0
-        return similarity_score
-
     def calculate(self, source_str, summary_str) -> float:
         methods = {
             "exact": self.exact_match_string_similarity,
             "spacy": self.spacy_string_similarity,
             "rouge": self.rouge_precision_string_similarity,
-            "WER": self.word_error_rate_string_similarity,
         }
         return methods.get(self.method)(source_str, summary_str)
 
