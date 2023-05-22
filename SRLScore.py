@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from statistics import mean
 
 from itertools import chain
@@ -15,18 +15,25 @@ class SRLScore:
     weights: List[float]
 
     def __init__(
-        self, string_comparison_method: str, do_coref: bool, weights: List[float],
+        self,
+        string_comparison_method: str = "rouge",
+        do_coref: bool = False,
+        weights: List[float] = (1/7, 1/7, 1/7, 1/7, 1/7, 1/7, 1/7),
     ):
+        if string_comparison_method not in ["rouge", "spacy", "exact"]:
+            raise ValueError(f"String comparison method for SRLScore must be either one of "
+                             f"'rouge', 'spacy', or 'exact'!")
         self.string_comparison_method = string_comparison_method
         self.do_coref = do_coref
+        if len(weights) != 7:
+            raise ValueError("Need to specify weights for all seven attributes! "
+                             "You may want to default to 0 weights for unspecified attributes.")
         self.weights = weights
 
     def _compare_two_tuples(self, source_tuple: tuple, generated_tuple: tuple) -> float:
         """
         This function calculates consistency score of two tuples.
         """
-        # hard-coded values for the semantic roles
-        # weights = [1 / 7, 1 / 7, 1 / 7, 1 / 7, 1 / 7, 1 / 7, 1 / 7]
         indic = np.array([1 if x else 0 for x in generated_tuple])
 
         pairwise_similarity_scores = [
@@ -46,7 +53,8 @@ class SRLScore:
         self, source_tuples: List[tuple], generated_tup: tuple
     ) -> float:
         """
-        This function compares a generated tuple with all of its relevant tuples from source text and takes the max as final score.
+        This function compares a generated tuple with all of its relevant tuples from the input text and
+        takes the maximum attained score as the final prediction.
         """
         tuple_final_score = 0
         for source_tup in source_tuples:
@@ -58,13 +66,13 @@ class SRLScore:
                 print("generated tup: ", generated_tup)
                 print("relevant_source_tup: ", source_tup)
 
-            # save loops in case the max final score of a tuple achieved
+            # save loops in case the max final score of a tuple achieved earlier
             if tuple_final_score == 1:
                 break
 
         return tuple_final_score
 
-    def calculate_factual_score(self, source_text: str, generated_text: str) -> float:
+    def calculate_score(self, source_text: str, generated_text: str) -> float:
         """
         This function calculates the consistency score of the generated summary.
         """
@@ -79,7 +87,7 @@ class SRLScore:
         print("generated_summary_tuples: ", generated_summary_tuples)
 
         if generated_summary_tuples != []:
-            Summary_score = []
+            summary_score = []
 
             for tup_clusters in generated_summary_tuples:
                 tup_clusters_score = []
@@ -93,9 +101,9 @@ class SRLScore:
                 print(
                     f"tup_clusters_score is {tup_clusters_score}; tup_clusters_final_score is {tup_clusters_final_score}"
                 )
-                Summary_score.append(tup_clusters_final_score)
-            print("summary score: ", Summary_score, "------a sample is fertig----")
-            return mean(Summary_score)
+                summary_score.append(tup_clusters_final_score)
+            print("summary score: ", summary_score, "------a sample is fertig----")
+            return mean(summary_score)
         else:
             return 0
 
@@ -197,8 +205,9 @@ class SRLScore:
 
 if __name__ == "__main__":
 
-    calcu = SRLScore("rouge", False)
-    score = calcu._compare_two_tuples(
+    # Initialize with default weights
+    scorer = SRLScore("rouge", False, None)
+    score = scorer._compare_two_tuples(
         ("Peter", None, "send", "one gift", " to his sister", None, None),
         ("Peter", None, "send", "a gift", None, None, None),
     )
