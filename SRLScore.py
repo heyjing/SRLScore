@@ -20,9 +20,10 @@ class SRLScore:
         do_coref: bool = False,
         weights: List[float] = (1/7, 1/7, 1/7, 1/7, 1/7, 1/7, 1/7),
     ):
-        if string_comparison_method not in ["rouge", "spacy", "exact"]:
-            raise ValueError(f"String comparison method for SRLScore must be either one of "
-                             f"'rouge', 'spacy', or 'exact'!")
+        # FIXME: Enable compatibility of value checking with evaluation script!
+        # if string_comparison_method not in ["rouge", "spacy", "exact"]:
+        #     raise ValueError(f"String comparison method for SRLScore must be either one of "
+        #                      f"'rouge', 'spacy', or 'exact'!")
         self.string_comparison_method = string_comparison_method
         self.do_coref = do_coref
         if len(weights) != 7:
