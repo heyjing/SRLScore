@@ -7,3 +7,5 @@
 *.synctex.gz
 
 *.bak~
+git-filter-repo
+__pycache__/*
