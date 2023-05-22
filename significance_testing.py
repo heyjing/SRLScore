@@ -44,20 +44,20 @@ def get_coco_scores(fn):
 
 def improvement_over_baseline():
     truth = {
-        "cnndm": get_gold_labels("./eval_results/cnndm_srl_goodrich.json"),
-        "xsum": get_gold_labels("./eval_results/xsum_srl_goodrich.json"),
-        "summeval": get_gold_labels("./eval_results/summeval_srl_goodrich.json")
+        "cnndm": get_gold_labels("./baselines/eval_results/cnndm_srl_goodrich.json"),
+        "xsum": get_gold_labels("./baselines/eval_results/xsum_srl_goodrich.json"),
+        "summeval": get_gold_labels("./baselines/eval_results/summeval_srl_goodrich.json")
     }
 
     for dataset in ["cnndm", "xsum", "summeval"]:
         base_scores = {}
         for baseline in ["rouge", "bleu", "meteor"]:
-            base_scores[baseline] = get_sample_scores(f"./eval_results/{dataset}_{baseline}.json")
+            base_scores[baseline] = get_sample_scores(f"./baselines/eval_results/{dataset}_{baseline}.json")
 
         if dataset in ["cnndm", "summeval"]:
-            srl_scores = get_sample_scores(f"./eval_results/{dataset}_srl_fullset_False_rouge.json")
+            srl_scores = get_sample_scores(f"./baselines/eval_results/{dataset}_srl_fullset_False_rouge.json")
         else:  # QAGS-XSUM
-            srl_scores = get_sample_scores(f"./eval_results/{dataset}_srl_fullset_False_spacy.json")
+            srl_scores = get_sample_scores(f"./baselines/eval_results/{dataset}_srl_fullset_False_spacy.json")
 
 
         for metric, scores in base_scores.items():
@@ -77,18 +77,18 @@ def improvement_over_baseline():
 
 def significance_between_methods():
     truth = {
-        "cnndm": get_gold_labels("./eval_results/cnndm_srl_goodrich.json"),
-        "xsum": get_gold_labels("./eval_results/xsum_srl_goodrich.json"),
-        "summeval": get_gold_labels("./eval_results/summeval_srl_goodrich.json")
+        "cnndm": get_gold_labels("./baselines/eval_results/cnndm_srl_goodrich.json"),
+        "xsum": get_gold_labels("./baselines/eval_results/xsum_srl_goodrich.json"),
+        "summeval": get_gold_labels("./baselines/eval_results/summeval_srl_goodrich.json")
     }
 
     for dataset in ["cnndm", "xsum", "summeval"]:
         bart_scores = {}
         for variant in ["", "cnn", "para"]:
             if variant == "":
-                bart_scores[variant] = get_sample_scores(f"./eval_results/{dataset}_bartscore.json")
+                bart_scores[variant] = get_sample_scores(f"./baselines/eval_results/{dataset}_bartscore.json")
             else:
-                bart_scores[variant] = get_sample_scores(f"./eval_results/{dataset}_bartscore_{variant}.json")
+                bart_scores[variant] = get_sample_scores(f"./baselines/eval_results/{dataset}_bartscore_{variant}.json")
 
         coco_scores = {}
         # Fix naming convention
@@ -100,9 +100,9 @@ def significance_between_methods():
         # Equivalent to ["_base", "_coref"] variants in the paper
         for variant in ["fullset_False", "fullset_True"]:
             if dataset in ["cnndm", "summeval"]:
-                srl_scores[variant] = get_sample_scores(f"./eval_results/{dataset}_srl_{variant}_rouge.json")
+                srl_scores[variant] = get_sample_scores(f"./baselines/eval_results/{dataset}_srl_{variant}_rouge.json")
             else:  # QAGS-XSUM
-                srl_scores[variant] = get_sample_scores(f"./eval_results/{dataset}_srl_{variant}_spacy.json")
+                srl_scores[variant] = get_sample_scores(f"./baselines/eval_results/{dataset}_srl_{variant}_spacy.json")
 
         other_scores = list(srl_scores.values()) + list(coco_scores.values())
         for variant, variant_scores in bart_scores.items():
@@ -160,26 +160,24 @@ def test_against_other_methods(scores_to_test: List, ground_truth: List, other_m
         print(f"No Spearman significance detected")
 
 
-
 if __name__ == '__main__':
     gold_scores = {
-        "qags-cnndm": get_gold_labels("./eval_results/cnndm_srl_goodrich.json"),
-        "qags-xsum": get_gold_labels("./eval_results/xsum_srl_goodrich.json"),
-        "summeval": get_gold_labels("./eval_results/summeval_srl_goodrich.json")
+        "qags-cnndm": get_gold_labels("./baselines/eval_results/cnndm_srl_goodrich.json"),
+        "qags-xsum": get_gold_labels("./baselines/eval_results/xsum_srl_goodrich.json"),
+        "summeval": get_gold_labels("./baselines/eval_results/summeval_srl_goodrich.json")
     }
-
 
     # Results of Table 3
     print("Results of Table 3:")
     static_scores = {
-        "qags-cnndm": get_sample_scores("./eval_results/cnndm_srl_fullset_staticweights_False_rouge.json"),
-        "qags-xsum": get_sample_scores("./eval_results/xsum_srl_fullset_staticweights_False_spacy.json"),
-        "summeval": get_sample_scores("./eval_results/summeval_srl_fullset_staticweights_False_rouge.json")
+        "qags-cnndm": get_sample_scores("./baselines/eval_results/cnndm_srl_fullset_staticweights_False_rouge.json"),
+        "qags-xsum": get_sample_scores("./baselines/eval_results/xsum_srl_fullset_staticweights_False_spacy.json"),
+        "summeval": get_sample_scores("./baselines/eval_results/summeval_srl_fullset_staticweights_False_rouge.json")
     }
     dynamic_scores = {
-        "qags-cnndm": get_sample_scores("./eval_results/cnndm_srl_fullset_False_rouge.json"),
-        "qags-xsum": get_sample_scores("./eval_results/xsum_srl_fullset_False_spacy.json"),
-        "summeval": get_sample_scores("./eval_results/summeval_srl_fullset_False_rouge.json")
+        "qags-cnndm": get_sample_scores("./baselines/eval_results/cnndm_srl_fullset_False_rouge.json"),
+        "qags-xsum": get_sample_scores("./baselines/eval_results/xsum_srl_fullset_False_spacy.json"),
+        "summeval": get_sample_scores("./baselines/eval_results/summeval_srl_fullset_False_rouge.json")
     }
 
     for dataset, gold in gold_scores.items():
@@ -199,7 +197,6 @@ if __name__ == '__main__':
         print(f"{dataset} Pearson p-value of improvement: {pearson_p}")
         print(f"{dataset} Spearman p-value of improvement: {spearman_p}")
 
-
     # Reproducing significance levels between BARTScore, CoCo and SRLScore
     print("Testing for significance between groups of factuality metrics:")
     significance_between_methods()
@@ -212,15 +209,15 @@ if __name__ == '__main__':
     print("Results of Table 2:")
     for sim_function in ["exact", "rouge", "spacy"]:
         openie = {
-            "qags-cnndm": get_sample_scores(f"./eval_results/cnndm_srl_baseline_False_{sim_function}.json"),
-            "qags-xsum": get_sample_scores(f"./eval_results/xsum_srl_baseline_False_{sim_function}.json"),
-            "summeval": get_sample_scores(f"./eval_results/summeval_srl_baseline_False_{sim_function}.json")
+            "qags-cnndm": get_sample_scores(f"./baselines/eval_results/cnndm_srl_baseline_False_{sim_function}.json"),
+            "qags-xsum": get_sample_scores(f"./baselines/eval_results/xsum_srl_baseline_False_{sim_function}.json"),
+            "summeval": get_sample_scores(f"./baselines/eval_results/summeval_srl_baseline_False_{sim_function}.json")
         }
 
         base = {
-            "qags-cnndm": get_sample_scores(f"./eval_results/cnndm_srl_fullset_False_{sim_function}.json"),
-            "qags-xsum": get_sample_scores(f"./eval_results/xsum_srl_fullset_False_{sim_function}.json"),
-            "summeval": get_sample_scores(f"./eval_results/summeval_srl_fullset_False_{sim_function}.json")
+            "qags-cnndm": get_sample_scores(f"./baselines/eval_results/cnndm_srl_fullset_False_{sim_function}.json"),
+            "qags-xsum": get_sample_scores(f"./baselines/eval_results/xsum_srl_fullset_False_{sim_function}.json"),
+            "summeval": get_sample_scores(f"./baselines/eval_results/summeval_srl_fullset_False_{sim_function}.json")
         }
 
         for dataset, gold in gold_scores.items():
@@ -243,9 +240,9 @@ if __name__ == '__main__':
     # Improvements over exact matching in Table 2:
     print(f"Significance levels of various similarity functions over exact matches for SRL_base")
     for dataset in ["cnndm", "xsum", "summeval"]:
-        exact = get_sample_scores(f"./eval_results/{dataset}_srl_fullset_False_exact.json")
-        rouge = get_sample_scores(f"./eval_results/{dataset}_srl_fullset_False_rouge.json")
-        spacy = get_sample_scores(f"./eval_results/{dataset}_srl_fullset_False_spacy.json")
+        exact = get_sample_scores(f"./baselines/eval_results/{dataset}_srl_fullset_False_exact.json")
+        rouge = get_sample_scores(f"./baselines/eval_results/{dataset}_srl_fullset_False_rouge.json")
+        spacy = get_sample_scores(f"./baselines/eval_results/{dataset}_srl_fullset_False_spacy.json")
 
         if dataset in ["cnndm", "xsum"]:
             gold = gold_scores[f"qags-{dataset}"]
@@ -266,12 +263,12 @@ if __name__ == '__main__':
 
     # Results of Table 4
     print("Results of Table 4:")
-    goodrich_scores = {"qags-cnndm": get_sample_scores("./eval_results/cnndm_srl_goodrich.json"),
-                       "qags-xsum": get_sample_scores("./eval_results/xsum_srl_goodrich.json"),
-                       "summeval": get_sample_scores("./eval_results/summeval_srl_goodrich.json")}
-    openie_scores = {"qags-cnndm": get_sample_scores("./eval_results/cnndm_srl_baseline_False_rouge.json"),
-                     "qags-xsum": get_sample_scores("./eval_results/xsum_srl_baseline_False_spacy.json"),
-                     "summeval": get_sample_scores("./eval_results/summeval_srl_baseline_False_rouge.json")}
+    goodrich_scores = {"qags-cnndm": get_sample_scores("./baselines/eval_results/cnndm_srl_goodrich.json"),
+                       "qags-xsum": get_sample_scores("./baselines/eval_results/xsum_srl_goodrich.json"),
+                       "summeval": get_sample_scores("./baselines/eval_results/summeval_srl_goodrich.json")}
+    openie_scores = {"qags-cnndm": get_sample_scores("./baselines/eval_results/cnndm_srl_baseline_False_rouge.json"),
+                     "qags-xsum": get_sample_scores("./baselines/eval_results/xsum_srl_baseline_False_spacy.json"),
+                     "summeval": get_sample_scores("./baselines/eval_results/summeval_srl_baseline_False_rouge.json")}
 
     for dataset, gold in gold_scores.items():
         print(f"{dataset}, Goodrich")
