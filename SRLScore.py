@@ -9,7 +9,7 @@ from tuple_comparison import StringSimilarityMethods
 from processor import Processor
 
 
-class CalculateFactualScore:
+class SRLScore:
     string_comparison_method: str
     do_coref: bool
     weights: List[float]
@@ -118,7 +118,7 @@ class CalculateFactualScore:
             validity = self._check_two_tuples_relevant_goodrich_inspired(
                 tup, relevant_tup
             )
-            if validity == True:
+            if validity:
                 break
         return validity
 
@@ -197,7 +197,7 @@ class CalculateFactualScore:
 
 if __name__ == "__main__":
 
-    calcu = CalculateFactualScore("rouge", False)
+    calcu = SRLScore("rouge", False)
     score = calcu._compare_two_tuples(
         ("Peter", None, "send", "one gift", " to his sister", None, None),
         ("Peter", None, "send", "a gift", None, None, None),

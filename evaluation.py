@@ -1,5 +1,6 @@
 """
-Evaluates qags samples, calculate pearson and spearman correlation between human_annotated_scores and different metric_scores
+Main evaluation script.
+Calculates Pearson and Spearman correlation between human-labeled factuality scores and automated metric scores.
 """
 from statistics import mean, median, variance
 import statistics as stat
