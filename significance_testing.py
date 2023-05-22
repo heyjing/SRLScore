@@ -94,7 +94,7 @@ def significance_between_methods():
         # Fix naming convention
         coco_dataset = f"qags-{dataset}" if dataset in ["cnndm", "xsum"] else dataset
         for variant in ["span", "sent"]:
-            coco_scores[variant] = get_coco_scores(f"./coco_scores/{coco_dataset}-{variant}-scores.txt")
+            coco_scores[variant] = get_coco_scores(f"./baselines/coco_scores/{coco_dataset}-{variant}-scores.txt")
 
         srl_scores = {}
         # Equivalent to ["_base", "_coref"] variants in the paper

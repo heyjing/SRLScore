@@ -15,7 +15,7 @@ from nltk.translate.meteor_score import meteor_score
 from sklearn.metrics import mean_squared_error
 
 from utils import *
-from calculate_faithful_score import CalculateFactualScore
+from SRLScore import SRLScore
 from baselines.bart_score import BARTScorer
 
 
@@ -150,7 +150,7 @@ def compute_goodrich_inspired_score(arg) -> List[float]:
 
     weights = [1 / 3, 0, 1 / 3, 1 / 3, 0, 0, 0]
 
-    calcu = CalculateFactualScore(
+    calcu = SRLScore(
         do_coref=False, string_comparison_method="goodrich", weights=weights
     )
 
@@ -199,13 +199,13 @@ def compute_srl_metric_scores(arg) -> List[float]:
     else:
         weights = [1 / 7, 1 / 7, 1 / 7, 1 / 7, 1 / 7, 1 / 7, 1 / 7]
 
-    calcu = CalculateFactualScore(
+    calcu = SRLScore(
         do_coref=do_coref, string_comparison_method=method, weights=weights
     )
 
     if arg.json_file == "qags-cnndm.jsonl" or arg.json_file == "qags-xsum.jsonl":
         srl_scores: List[float] = [
-            calcu.calculate_factual_score(
+            calcu.calculate_score(
                 sample["article"], get_qag_whole_summary_sents(sample)
             )
             for sample in tqdm(samples, desc="processing sample: ")
@@ -213,7 +213,7 @@ def compute_srl_metric_scores(arg) -> List[float]:
 
     if arg.json_file == "summeval.jsonl":
         srl_scores: List[float] = [
-            calcu.calculate_factual_score(sample["text"], sample["decoded"])
+            calcu.calculate_score(sample["text"], sample["decoded"])
             for sample in tqdm(samples, desc="processing sample: ")
         ]
 

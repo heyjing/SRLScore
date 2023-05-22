@@ -1,6 +1,6 @@
 """
-This is a script that extracts facts from texts and again represents them 
-using semantic role labels. For an input text, the output will be a fact database: List[tuple].
+This is a script that extracts facts from texts and represents them using semantic role labels.
+For an input text, the output will be a fact database in the form of List[tuple].
 The function calculate_summary_score() in the ModelConfigurator class returns a faithfulness score of 
 the corresponding summary against its source text.
 """
@@ -25,6 +25,7 @@ def load_spacy_model():
 
 @lru_cache(maxsize=1)
 def load_srl_model(cuda: bool = True):
+    # TODO: Allow custom CUDA device indices
     if cuda:
         srl_model = Predictor.from_path(
             "https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz",
@@ -39,6 +40,7 @@ def load_srl_model(cuda: bool = True):
 
 @lru_cache(maxsize=1)
 def load_coref_model(cuda: bool = True):
+    # TODO: Allow custom CUDA device indices
     if cuda:
         coref_model = Predictor.from_path(
             "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2021.03.10.tar.gz",
@@ -57,7 +59,7 @@ def text_preprocessing(text: str, coref_solver: bool) -> str:
     """
 
     # step 1: AllenNLP coreference resolution
-    if coref_solver == True:
+    if coref_solver:
         print("-----text preprocessing: coreference resolution-----")
         coref_model = load_coref_model()
         text = coref_model.coref_resolved(text)
@@ -73,7 +75,8 @@ def text_preprocessing(text: str, coref_solver: bool) -> str:
 def tuple_postprocessing(string: str, func_words_remover: bool) -> str:
     """
     Strings in extracted tuples may be long.
-    This function removes leading ADP(prepositions like in, to, auf etc.) and DET(determiner like this, that, a, an, diese etc.) 
+    This function removes leading ADP (prepositions like in, to, auf etc.) or
+    DET (determiner like this, that, a, an, diese etc.)
     tags for each tuple element of string type, so that the tuples only contain the most important
     semantic information. The SPACY POS Tags List is the same for different languages. 
     """
@@ -97,7 +100,7 @@ def extract_tuples(
     text: str, coref_solver: bool, func_words_remover: bool
 ) -> List[tuple]:
     """
-    This function takes an text as input and returns a list of extracted SRL truth tuples.
+    This function takes a text as input and returns a list of extracted SRL truth tuples.
 
     """
     annotated_data: dict = text_preprocessing(text, coref_solver)
