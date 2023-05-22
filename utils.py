@@ -11,7 +11,7 @@ import rouge_score.scoring
 from scipy.stats import pearsonr, spearmanr
 from rouge_score import rouge_scorer
 from tqdm import tqdm
-# from mosestokenizer import *
+from mosestokenizer import MosesDetokenizer
 
 
 def most_common_list_element(lst: List):
@@ -62,31 +62,31 @@ def calculate_correlation_score(lst1: List[float], lst2: List[float]) -> Tuple[f
 
     return pearson_corr, pearson_p_value, spearman_corr, spearman_p_value
 
-# # for CoCo score (but we have not implemented it successfully in the end)
-# def detokenize(text: str) -> str:
-#     detokenizer = MosesDetokenizer("en")
-#     words = text.split(" ")
-#     return detokenizer(words)
+
+def detokenize(text: str) -> str:
+    detokenizer = MosesDetokenizer("en")
+    words = text.split(" ")
+    return detokenizer(words)
 
 
-# def get_src_sys_lines_for_BART(
-#     samples: List[dict], json_file_name: str
-# ) -> Tuple[List[str], List[str]]:
-#
-#     if json_file_name == "qags-cnndm.jsonl" or json_file_name == "qags-xsum.jsonl":
-#         src_lines: List[str] = [sample["article"] for sample in tqdm(samples)]
-#         sys_lines: List[str] = [
-#             get_qag_whole_summary_sents(sample) for sample in tqdm(samples)
-#         ]
-#
-#     if json_file_name == "summeval.jsonl":
-#         src_lines: List[str] = [sample["text"] for sample in tqdm(samples)]
-#         sys_lines: List[str] = [sample["decoded"] for sample in tqdm(samples)]
-#
-#     src_lines = [detokenize(line) for line in src_lines]
-#     sys_lines = [detokenize(line) for line in sys_lines]
-#
-#     return src_lines, sys_lines
+def get_src_sys_lines_for_BART(
+    samples: List[dict], json_file_name: str
+) -> Tuple[List[str], List[str]]:
+
+    if json_file_name == "qags-cnndm.jsonl" or json_file_name == "qags-xsum.jsonl":
+        src_lines: List[str] = [sample["article"] for sample in tqdm(samples)]
+        sys_lines: List[str] = [
+            get_qag_whole_summary_sents(sample) for sample in tqdm(samples)
+        ]
+
+    if json_file_name == "summeval.jsonl":
+        src_lines: List[str] = [sample["text"] for sample in tqdm(samples)]
+        sys_lines: List[str] = [sample["decoded"] for sample in tqdm(samples)]
+
+    src_lines = [detokenize(line) for line in src_lines]
+    sys_lines = [detokenize(line) for line in sys_lines]
+
+    return src_lines, sys_lines
 
 
 def save_data(data, arg):
