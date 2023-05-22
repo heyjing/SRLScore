@@ -1,5 +1,7 @@
 """
 A collection of custom data types for interfacing SRL and coreference information.
+Note that these are not necessarily optimized for processing speed, and contain a fair number of experimental features as well.
+If performance is an issue to you, we recommend starting your profiling for these objects.
 """
 from typing import List
 import itertools
