@@ -1,15 +1,12 @@
 """
 Evaluates qags samples, calculate pearson and spearman correlation between human_annotated_scores and different metric_scores
 """
-from typing import List
 from statistics import mean, median, variance
 import statistics as stat
 import argparse
-import json
 import sys
 import os
 
-from tqdm import tqdm
 import numpy as np
 import time
 from nltk.translate.bleu_score import sentence_bleu
@@ -18,7 +15,7 @@ from sklearn.metrics import mean_squared_error
 
 from utils import *
 from calculate_faithful_score import CalculateFactualScore
-from bart_score import BARTScorer
+from baselines.bart_score import BARTScorer
 
 
 def get_samples(arg) -> List[dict]:
@@ -26,7 +23,7 @@ def get_samples(arg) -> List[dict]:
     read json file and store each sample in a list
     """
     samples = []
-    with open(os.path.join(sys.path[0], arg.json_file)) as f:
+    with open(os.path.join("./data/", arg.json_file)) as f:
         for line in f:
             samples.append(json.loads(line))
 
