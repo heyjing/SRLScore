@@ -1,8 +1,12 @@
+# Packages required for our method
 allennlp
 nltk
 spacy>=3.4
 https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.4.1/en_core_web_sm-3.4.1.tar.gz#egg=en_core_web_sm
+
+# Packages necessary for baseline computation and comparison
 summaries @ git+https://github.com/dennlinger/summaries@main
+transformers>=4.6
 
 # allennlp==2.1.0
 # nltk==3.6.1
