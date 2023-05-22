@@ -67,8 +67,8 @@ class Processor:
             # Catching errors likely due to incorrect token normalization
             try:
                 result = self.srl_model.predict(sent.text)
-            # FIXME: This may cause problem in later iterations, so make sure that empty lists are caught
-            #  elsewhere, too!
+            # FIXME: The general error  may cause problem in later iterations,
+            #  so make sure that empty lists are caught elsewhere, too!
             except RuntimeError as e:
                 result = []
                 warnings.warn(
@@ -145,7 +145,7 @@ class Processor:
 
                 # Need at least two "relevant" arguments in the relation
                 if self._count_non_zero_entries(curr_tuple) >= 2:
-                    if self.do_coref == True:
+                    if self.do_coref:
                         all_tuples.append(curr_tuple.explode_tuple(self.ent_dict))
                     else:  # implies we do not need to explode tuples
                         all_tuples.append([curr_tuple.format_tuple()])
