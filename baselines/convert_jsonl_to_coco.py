@@ -7,10 +7,11 @@ import json
 
 
 def convert_qags_cnndm():
-    with open("qags-cnndm.jsonl", "r") as f:
+    with open("../qags-cnndm.jsonl", "r") as f:
         lines = list(f)
 
     # Empty existing files
+    # FIXME: May have to adjut these paths!
     with open("source-qags-cnndm.txt", "w") as f:
         pass
     with open("summary-qags-cnndm.txt", "w") as f:
@@ -28,7 +29,7 @@ def convert_qags_cnndm():
             summ.write(summary_text)
 
 def convert_qags_xsum():
-    with open("qags-xsum.jsonl", "r") as f:
+    with open("../qags-xsum.jsonl", "r") as f:
         lines = list(f)
 
     # Empty existing files
@@ -50,7 +51,7 @@ def convert_qags_xsum():
 
 
 def convert_summeval():
-    with open("summeval.jsonl", "r") as f:
+    with open("../summeval.jsonl", "r") as f:
         lines = list(f)
 
     # Empty existing files
