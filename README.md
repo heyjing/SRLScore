@@ -7,8 +7,17 @@ Institute of Computer Science, Heidelberg University
 
 ## Installation
 We provide an exhaustive list of required packages through the `requirements.txt` file.
-However, given the finnicky dependency issues surrounding the (nowadays outdated) AllenNLP release, as well as the spaCy versions required,
-we strongly suggest a manual installation of the necessary dependencies.
+However, given the finnicky dependency issues surrounding the (nowadays deprecated) AllenNLP release, as well as the spaCy versions required,
+we strongly suggest creating a new environment in which to install this package.
+
+You can install the required core dependencies with
+```bash
+python3 -m pip install -r requirements.txt
+```
+This works (guaranteed) for Python versions 3.8 and 3.9; we do not guarantee a full compatibility with 3.10.
+Furthermore, we encountered some (temporary?) issues regarding the dependency on `typing-extensions==4.6.0`, respectively `pydantic`.
+More information can be found [in this Github issue](https://github.com/pydantic/pydantic/issues/545).
+Should you encounter a similar problem, consider manuall downgrading your `typing-extensions` version to `typing-extensions==4.5.0`.
 
 
 ## Usage
