@@ -101,8 +101,9 @@ class SRLScore:
         source_tuples: List[tuple] = list(chain(*source_tuples))
 
         generated_summary_tuples: List[List[tuple]] = proc.process_text(generated_text)
-        print("source_tuples: ", source_tuples)
-        print("generated_summary_tuples: ", generated_summary_tuples)
+        if self.verbose:
+            print("source_tuples: ", source_tuples)
+            print("generated_summary_tuples: ", generated_summary_tuples)
 
         if generated_summary_tuples != []:
             summary_score = []
