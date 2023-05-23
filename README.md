@@ -3,6 +3,7 @@ Jing Fan<sup>\*</sup>, Dennis Aumiller<sup>\*</sup>, and Michael Gertz
 Institute of Computer Science, Heidelberg University  
 <sup>\*</sup> These authors contributed equally to this work.
 
+**2023-05-23**: A pre-print of our work is now available **[on arXiv](https://arxiv.org/abs/2305.13309)**.  
 **2023-05-15**: Our work has been accepted at [\*SEM 2023](https://sites.google.com/view/starsem2023)! We will update the citation once the proceedings become available.
 
 ## Installation
@@ -50,6 +51,17 @@ Note that we apply Bonferroni correction, which makes the significance threshold
 
 ## Citation
 
-If you found this work helpful, please consider citing our work:
+If you found this repository helpful, please consider citing our work:
 
-(Will be added once arXiv release becomes available)
+```
+@article{fan-etal-2023-evaluating,
+  title={{Evaluating Factual Consistency of Texts with Semantic Role Labeling}}, 
+  author={Jing Fan and Dennis Aumiller and Michael Gertz},
+  journal={CoRR},
+  volume={abs/2305.13309},
+  year={2023},
+  eprint={2305.13309},
+  eprinttype={arXiv},
+  primaryClass={cs.CL}
+}
+```
