@@ -1,4 +1,7 @@
 """
+DEPRECATION WARNING: THIS SCRIPT IS OUTDATED, PLEASE USE THE CLASSES IN processor.py
+
+
 This is a script that extracts facts from texts and represents them using semantic role labels.
 For an input text, the output will be a fact database in the form of List[tuple].
 The function calculate_summary_score() in the ModelConfigurator class returns a faithfulness score of 
@@ -17,7 +20,8 @@ import spacy
 
 from custom_datatypes import SRLTuple
 
-@lru_cache(maxsize=1)
+
+@lru_cache(maxsize=2)
 def load_spacy_model():
     nlp = spacy.load("en_core_web_lg")
     return nlp
