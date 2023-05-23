@@ -8,7 +8,7 @@ Institute of Computer Science, Heidelberg University
 
 ## Installation
 We provide an exhaustive list of required packages through the `requirements.txt` file.
-However, given the finnicky dependency issues surrounding the (nowadays deprecated) AllenNLP release, as well as the spaCy versions required,
+However, given the finicky dependency issues surrounding the (nowadays deprecated) AllenNLP release, as well as the spaCy versions required,
 we strongly suggest creating a new environment in which to install this package.
 
 You can install the required core dependencies with

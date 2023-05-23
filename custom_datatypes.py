@@ -8,6 +8,12 @@ import itertools
 
 
 class SRLTuple:
+    """
+    Representation of a SRL attribute tuple. Contains the values written in self.attributes.
+    Note that all attributes are optional, and default to None.
+    Implicitly assumes that all values are either str or NoneType, but makes no explicit checks for performance.
+    """
+
     # Need to manually track attributes for consistent output later on
     attributes = ["agent", "negation", "relation", "patient", "recipient", "time", "location"]
 
@@ -70,7 +76,7 @@ class SRLTuple:
     def _get_attribute_values(self, attr_name: str, ent_dict: dict) -> list:
         """
         Will generate all possible variations a particular attribute value could hold.
-        This is important in case we store a entity-like string, which may cause our method to introduce alternatives.
+        This is important in case we store an entity-like string, which may cause our method to introduce alternatives.
         """
         curr_attribute_value = self.__getattribute__(attr_name)
 
@@ -112,7 +118,8 @@ class SRLTuple:
 
 class EntityToken:
     """
-    Class that allows for easy comparison to `str`, but contains additional fields
+    Class that allows for easy comparison to `str`, but contains additional fields.
+    In particular, these are required for entity co-resolution.
     """
 
     text: str
@@ -148,6 +155,7 @@ class EntityToken:
 class CustomSpan:
     """
     Custom Span class, which allows for easier equality/range checks.
+    These are required for partial overlaps in co-reference resolution scenarios.
     """
 
     start: int
@@ -220,14 +228,14 @@ class CustomSpan:
 
 
 if __name__ == "__main__":
-    all_combinations = [
+    combinations = [
         ["his sister mary", "his mary"],
         ["give"],
         [None],
         ["perter", "him"],
         ["a gift"],
     ]
-    print(list(itertools.product(*all_combinations)))
+    print(list(itertools.product(*combinations)))
     entity_dict = {0: {"peter", "his"}}
     tup = SRLTuple(
         ("", EntityToken("peter", 0), ""), None, None, None, None, None, None
