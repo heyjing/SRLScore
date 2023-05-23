@@ -1,17 +1,13 @@
 # Packages required for our method
-allennlp
+allennlp==2.10.1
+allennlp-models==2.10.1
+typing-extensions<=4.5.0
+spacy
+rouge-score
+
+# Should be already included as sub-dependencies in other tools, e.g., AllenNLP
 nltk
-spacy>=3.4
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.4.1/en_core_web_sm-3.4.1.tar.gz#egg=en_core_web_sm
 numpy
 scipy
 tqdm
-
-# Packages necessary for baseline computation and comparison
-summaries @ git+https://github.com/dennlinger/summaries@main
 transformers>=4.6
-mosestokenizer
-
-# allennlp==2.1.0
-# nltk==3.6.1
-# spacy==3.4.4
