@@ -10,6 +10,9 @@ from processor import Processor
 
 
 class SRLScore:
+    """
+    Base Evaluator Class.
+    """
     verbose: bool
     string_comparison_method: str
     do_coref: bool
@@ -21,6 +24,16 @@ class SRLScore:
         do_coref: bool = False,
         weights: List[float] = (1/7, 1/7, 1/7, 1/7, 1/7, 1/7, 1/7),
     ):
+        """
+        Initialize an SRLScorer object.
+        :param string_comparison_method: The primary choices are "exact" (exact matches), "rouge" (n-gram overlap),
+            or "spacy" (vector similarity).
+        :param do_coref: If enabled, will additionally pre-process the text by performing co-reference resolution.
+            This significantly affects the processing time, as it requires a second inference step of a neural model,
+            and further increases the number of "fact tuples" that will be generated.
+        :param weights: A list of weights assigned to each individual SRL attribute. The default assigns equal weights,
+            which in our experiments has been proven as a reliable baseline.
+        """
         # FIXME: Enable compatibility of value checking with evaluation script!
         # if string_comparison_method not in ["rouge", "spacy", "exact"]:
         #     raise ValueError(f"String comparison method for SRLScore must be either one of "
