@@ -205,7 +205,7 @@ def compute_srl_metric_scores(arg) -> List[float]:
 
     if arg.json_file == "qags-cnndm.jsonl" or arg.json_file == "qags-xsum.jsonl":
         srl_scores: List[float] = [
-            calcu.calculate_score(
+            calcu.score(
                 sample["article"], get_qag_whole_summary_sents(sample)
             )
             for sample in tqdm(samples, desc="processing sample: ")
@@ -213,7 +213,7 @@ def compute_srl_metric_scores(arg) -> List[float]:
 
     if arg.json_file == "summeval.jsonl":
         srl_scores: List[float] = [
-            calcu.calculate_score(sample["text"], sample["decoded"])
+            calcu.score(sample["text"], sample["decoded"])
             for sample in tqdm(samples, desc="processing sample: ")
         ]
 

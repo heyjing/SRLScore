@@ -90,7 +90,7 @@ class SRLScore:
 
         return tuple_final_score
 
-    def calculate_score(self, source_text: str, generated_text: str) -> float:
+    def score(self, source_text: str, generated_text: str) -> float:
         """
         This function calculates the consistency score of the generated summary.
         """
