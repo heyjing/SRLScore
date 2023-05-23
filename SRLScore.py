@@ -10,6 +10,7 @@ from processor import Processor
 
 
 class SRLScore:
+    verbose: bool
     string_comparison_method: str
     do_coref: bool
     weights: List[float]
@@ -30,6 +31,9 @@ class SRLScore:
             raise ValueError("Need to specify weights for all seven attributes! "
                              "You may want to default to 0 weights for unspecified attributes.")
         self.weights = weights
+
+        # Enable for debugging purposes
+        self.verbose = False
 
     def _compare_two_tuples(self, source_tuple: tuple, generated_tuple: tuple) -> float:
         """
@@ -99,11 +103,12 @@ class SRLScore:
                     tup_clusters_score.append(tup_score)
 
                 tup_clusters_final_score = mean(tup_clusters_score)
-                print(
-                    f"tup_clusters_score is {tup_clusters_score}; tup_clusters_final_score is {tup_clusters_final_score}"
-                )
+                if self.verbose:
+                    print(
+                        f"tup_clusters_score is {tup_clusters_score}; "
+                        f"tup_clusters_final_score is {tup_clusters_final_score}"
+                    )
                 summary_score.append(tup_clusters_final_score)
-            print("summary score: ", summary_score, "------a sample is fertig----")
             return mean(summary_score)
         else:
             return 0
