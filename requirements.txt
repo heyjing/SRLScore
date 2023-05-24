@@ -2,12 +2,16 @@
 allennlp==2.10.1
 allennlp-models==2.10.1
 typing-extensions<=4.5.0
-spacy
 rouge-score
+
+# Models required for the tokenization (_sm) and spacy vector similarity computation (_lg)
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.4.1/en_core_web_sm-3.4.1.tar.gz#egg=en_core_web_sm
+https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.4.1/en_core_web_lg-3.4.1.tar.gz#egg=en_core_web_lg
 
 # Should be already included as sub-dependencies in other tools, e.g., AllenNLP
 nltk
 numpy
 scipy
 tqdm
+spacy<=3.5
 transformers>=4.6
