@@ -3,6 +3,8 @@ Jing Fan<sup>\*</sup>, Dennis Aumiller<sup>\*</sup>, and Michael Gertz
 Institute of Computer Science, Heidelberg University  
 <sup>\*</sup> These authors contributed equally to this work.
 
+You can reach us via the Github issues, or write us a mail to [`aumiller@informatik.uni-heidelberg.de`](mailto:aumiller@informatik.uni-heidelberg.de)!
+
 **2023-05-23**: A pre-print of our work is now available **[on arXiv](https://arxiv.org/abs/2305.13309)**.  
 **2023-05-15**: Our work has been accepted at [\*SEM 2023](https://sites.google.com/view/starsem2023)! We will update the citation once the proceedings become available.
 
