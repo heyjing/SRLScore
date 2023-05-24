@@ -22,7 +22,7 @@ class SRLScore:
         self,
         string_comparison_method: str = "rouge",
         do_coref: bool = False,
-        weights: List[float] = (1/7, 1/7, 1/7, 1/7, 1/7, 1/7, 1/7),
+        weights: List[float] = [1/7, 1/7, 1/7, 1/7, 1/7, 1/7, 1/7],
     ):
         """
         Initialize an SRLScorer object.
@@ -81,8 +81,9 @@ class SRLScore:
             )
             if consistency_score > tuple_final_score:
                 tuple_final_score = consistency_score
-                print("generated tup: ", generated_tup)
-                print("relevant_source_tup: ", source_tup)
+                if self.verbose:
+                    print("generated tup: ", generated_tup)
+                    print("relevant_source_tup: ", source_tup)
 
             # save loops in case the max final score of a tuple achieved earlier
             if tuple_final_score == 1:
@@ -108,9 +109,9 @@ class SRLScore:
         if generated_summary_tuples != []:
             summary_score = []
 
-            for tup_clusters in generated_summary_tuples:
+            for tup_clusters in tqdm(generated_summary_tuples, desc="calculate_summary_score"):
                 tup_clusters_score = []
-                for tup in tqdm(tup_clusters, desc="calculate_summary_score"):
+                for tup in tup_clusters:
                     tup_score = self._compare_tuple_with_relevant_tuples(
                         source_tuples, tup
                     )
@@ -226,7 +227,7 @@ class SRLScore:
 if __name__ == "__main__":
 
     # Initialize with default weights
-    scorer = SRLScore("rouge", False, None)
+    scorer = SRLScore("rouge", False)
     score = scorer._compare_two_tuples(
         ("Peter", None, "send", "one gift", " to his sister", None, None),
         ("Peter", None, "send", "a gift", None, None, None),
